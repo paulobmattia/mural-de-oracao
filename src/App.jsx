@@ -31,7 +31,6 @@ import {
   Sparkles, 
   Plus, 
   BookOpen, 
-  LogIn, 
   Mail, 
   Lock, 
   CheckCircle, 
@@ -63,8 +62,6 @@ export default function PrayerApp() {
   const [view, setView] = useState('splash'); 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Estado para o Modal de Confirmação Personalizado
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, requestId: null });
 
   // 1. Monitorar Autenticação
@@ -81,9 +78,7 @@ export default function PrayerApp() {
           } else {
              setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           }
-        } catch (e) {
-          console.error("Erro perfil", e);
-        }
+        } catch (e) { console.error(e); }
       } else {
         setUserProfile(null);
         if (view !== 'splash') setView('login');
@@ -96,7 +91,6 @@ export default function PrayerApp() {
   useEffect(() => {
     if (!user) return;
     const requestsRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
-    
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       loadedRequests.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -110,11 +104,11 @@ export default function PrayerApp() {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!user) setView('login');
-    }, 2500);
+    }, 3500);
     return () => clearTimeout(timer);
   }, [user]);
 
-  // --- Ações de Autenticação ---
+  // --- Ações ---
 
   const handleEmailLogin = async (email, password, isRegister, name) => {
     try {
@@ -140,9 +134,7 @@ export default function PrayerApp() {
         name: result.user.displayName,
         email: result.user.email
       });
-    } catch (error) {
-      console.error("Erro Google:", error);
-    }
+    } catch (error) { console.error("Erro Google:", error); }
   };
 
   const saveUserProfile = async (uid, data) => {
@@ -158,8 +150,6 @@ export default function PrayerApp() {
     setView('login');
   };
 
-  // --- Ações do App ---
-
   const handleCreateRequest = async (content, isAnonymous) => {
     if (!content.trim() || !user) return;
     try {
@@ -173,27 +163,17 @@ export default function PrayerApp() {
         prayedBy: []
       });
       setView('read');
-    } catch (error) {
-      console.error("Erro ao criar:", error);
-      alert("Erro ao enviar.");
-    }
+    } catch (error) { alert("Erro ao enviar."); }
   };
 
-  // Função chamada ao clicar no X (apenas abre o modal)
-  const handleDeleteRequestClick = (requestId) => {
-    setDeleteModal({ isOpen: true, requestId });
-  };
+  const handleDeleteRequestClick = (requestId) => setDeleteModal({ isOpen: true, requestId });
 
-  // Função que realmente deleta (chamada pelo Modal)
   const confirmDelete = async () => {
     if (!deleteModal.requestId) return;
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'prayer_requests', deleteModal.requestId));
       setDeleteModal({ isOpen: false, requestId: null });
-    } catch (error) {
-      console.error("Erro ao deletar:", error);
-      alert("Erro ao excluir.");
-    }
+    } catch (error) { alert("Erro ao excluir."); }
   };
 
   const handlePrayInteraction = async (requestId, isPraying) => {
@@ -216,6 +196,13 @@ export default function PrayerApp() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', sans-serif; }
+        @keyframes fadeInSimple {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        .animate-fade-simple {
+          animation: fadeInSimple 2.5s ease-out forwards;
+        }
       `}</style>
 
       <Header view={view} setView={setView} onLogout={handleLogout} />
@@ -233,13 +220,13 @@ export default function PrayerApp() {
             loading={loading} 
             currentUser={user}
             onPray={handlePrayInteraction}
-            onDeleteClick={handleDeleteRequestClick} // Passando a nova função
+            onDeleteClick={handleDeleteRequestClick}
             userProfile={userProfile}
           />
         )}
       </main>
 
-      {/* MODAL DE CONFIRMAÇÃO PERSONALIZADO */}
+      {/* MODAL EXCLUSÃO */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200">
@@ -247,46 +234,35 @@ export default function PrayerApp() {
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-2">
                 <AlertTriangle size={24} />
               </div>
-              
               <h3 className="text-xl font-bold text-slate-800">ATENÇÃO!</h3>
-              
               <p className="text-slate-500 text-sm leading-relaxed">
-                Tem certeza que deseja excluir este pedido de oração? Essa ação não pode ser desfeita.
+                Tem certeza que deseja excluir este pedido de oração?
               </p>
-
               <div className="flex gap-3 w-full mt-2">
-                <button 
-                  onClick={() => setDeleteModal({ isOpen: false, requestId: null })}
-                  className="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={confirmDelete}
-                  className="flex-1 py-3 px-4 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
-                >
-                  Excluir
-                </button>
+                <button onClick={() => setDeleteModal({ isOpen: false, requestId: null })} className="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-colors">Cancelar</button>
+                <button onClick={confirmDelete} className="flex-1 py-3 px-4 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Excluir</button>
               </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
-// --- Componentes ---
+// --- Componentes Visuais ---
 
 function SplashScreen() {
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-blue-600 to-purple-700 flex flex-col items-center justify-center text-white z-50 animate-fade-out">
-      <div className="animate-bounce-slow">
-        <Sparkles size={80} className="text-white opacity-90" />
+    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
+      <div className="animate-fade-simple flex flex-col items-center">
+        {/* Ajustado para .png */}
+        <img 
+          src="/icon.png" 
+          alt="Logo" 
+          className="w-40 h-40 object-contain mb-6"
+        />
       </div>
-      <h1 className="mt-6 text-3xl font-light tracking-widest animate-pulse font-roboto">ORAÇÃO</h1>
-      <p className="mt-2 text-sm opacity-75">Conectando propósitos</p>
     </div>
   );
 }
@@ -311,8 +287,9 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white animate-in fade-in slide-in-from-bottom-8 duration-700">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600 shadow-sm">
-            <Sparkles size={32} />
+          <div className="flex justify-center mb-6">
+             {/* Ajustado para .png */}
+             <img src="/icon.png" alt="Logo" className="w-24 h-24 object-contain" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800">{isRegister ? 'Criar Conta' : 'Bem-vindo de volta'}</h2>
           <p className="text-slate-500 text-sm mt-2">Entre para se conectar à corrente de oração.</p>
@@ -322,46 +299,19 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
           {isRegister && (
             <div className="relative group animate-in slide-in-from-top-2 fade-in duration-300">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-              <input
-                type="text"
-                required
-                placeholder="Seu nome completo"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all"
-              />
+              <input type="text" required placeholder="Seu nome completo" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all" />
             </div>
           )}
-
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-            <input
-              type="email"
-              required
-              placeholder="Seu e-mail"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all"
-            />
+            <input type="email" required placeholder="Seu e-mail" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all" />
           </div>
-
           <div className="relative group">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-            <input
-              type="password"
-              required
-              placeholder="Sua senha"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all"
-            />
+            <input type="password" required placeholder="Sua senha" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all" />
           </div>
-
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2 shadow-lg shadow-blue-200 disabled:opacity-70"
-          >
+          
+          <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-70">
             {loading ? 'Processando...' : (isRegister ? 'Cadastrar' : 'Entrar')}
           </button>
         </form>
@@ -381,7 +331,6 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
           </svg>
           Google
         </button>
-
         <div className="mt-8 text-center">
           <button onClick={() => setIsRegister(!isRegister)} className="text-sm text-slate-500 hover:text-blue-600 transition-colors font-medium">
             {isRegister ? 'Já tem uma conta? Faça login' : 'Não tem conta? Cadastre-se'}
@@ -394,22 +343,22 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
 
 function Header({ view, setView, onLogout }) {
   return (
-    <div className="bg-white shadow-sm p-4 sticky top-0 z-10 flex items-center justify-between">
+    <div className="bg-[#649fce] shadow-sm p-4 sticky top-0 z-10 flex items-center justify-between text-white">
       <div className="w-10 flex justify-start">
         {view !== 'home' && view !== 'login' && (
-          <button onClick={() => setView('home')} className="p-2 -ml-2 text-blue-600 hover:bg-blue-50 rounded-full">
+          <button onClick={() => setView('home')} className="p-2 -ml-2 text-white hover:bg-white/20 rounded-full transition-colors">
             <ArrowLeft size={24} />
           </button>
         )}
       </div>
       <div className="flex-1 text-center">
-        <h1 className="text-lg font-bold text-blue-900 tracking-wide">
-          {view === 'home' ? 'Intercessão' : view === 'write' ? 'Novo Pedido' : view === 'read' ? 'Mural' : ''}
+        <h1 className="text-lg font-bold tracking-wide">
+          {view === 'home' ? 'Mural de Oração v. 1.0' : view === 'write' ? 'Novo Pedido' : view === 'read' ? 'Mural' : ''}
         </h1>
       </div>
       <div className="w-10 flex justify-end">
         {view === 'home' && (
-          <button onClick={onLogout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Sair">
+          <button onClick={onLogout} className="p-2 text-white hover:bg-white/20 rounded-full transition-colors" title="Sair">
             <LogOut size={20} />
           </button>
         )}
@@ -462,7 +411,6 @@ function WriteScreen({ onSubmit, userName }) {
   return (
     <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        
         <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
              <div className={`p-2 rounded-full ${isAnonymous ? 'bg-slate-100' : 'bg-blue-100'}`}>
@@ -473,30 +421,16 @@ function WriteScreen({ onSubmit, userName }) {
                <span className="font-medium text-slate-700">{isAnonymous ? 'Anônimo' : (userName || 'Você')}</span>
              </div>
           </div>
-          
-          <button
-            type="button"
-            onClick={() => setIsAnonymous(!isAnonymous)}
-            className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300' : 'bg-blue-500'}`}
-          >
+          <button type="button" onClick={() => setIsAnonymous(!isAnonymous)} className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300' : 'bg-blue-500'}`}>
             <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-sm transition-transform duration-300 ${isAnonymous ? 'translate-x-0' : 'translate-x-5'}`}></div>
           </button>
         </div>
-
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
           <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
             <Sparkles size={16} /> Seu Pedido de Oração
           </label>
-          <textarea
-            required
-            rows={6}
-            placeholder="Descreva seu pedido com detalhes..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full p-3 bg-slate-50 rounded-lg outline-none focus:ring-2 focus:ring-blue-200 transition-all resize-none text-slate-700"
-          />
+          <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 rounded-lg outline-none focus:ring-2 focus:ring-blue-200 transition-all resize-none text-slate-700" />
         </div>
-
         <button disabled={isSubmitting} type="submit" className="bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
           {isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}
         </button>
@@ -512,14 +446,7 @@ function ReadScreen({ requests, loading, onPray, onDeleteClick, currentUser, use
   return (
     <div className="p-4 flex flex-col gap-4 pb-20 animate-in fade-in duration-500">
       {requests.map((req) => (
-        <PrayerCard 
-          key={req.id} 
-          request={req} 
-          currentUser={currentUser}
-          userProfile={userProfile}
-          onPray={onPray} 
-          onDeleteClick={onDeleteClick}
-        />
+        <PrayerCard key={req.id} request={req} currentUser={currentUser} userProfile={userProfile} onPray={onPray} onDeleteClick={onDeleteClick} />
       ))}
     </div>
   );
@@ -529,28 +456,20 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
   const prayedBy = request.prayedBy || [];
   const isPraying = prayedBy.includes(currentUser?.uid);
   const isAuthor = request.authorId === currentUser?.uid;
-  
   const [showComments, setShowComments] = useState(false);
   const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group">
-      
       {isAuthor && (
-        <button 
-          onClick={() => onDeleteClick(request.id)}
-          className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1"
-        >
+        <button onClick={() => onDeleteClick(request.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1">
           <X size={16} />
         </button>
       )}
-
       <div className="flex justify-between items-start mb-3 pr-6">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${
-            isAuthor ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
-          }`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isAuthor ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
             {avatarInitial}
           </div>
           <div>
@@ -562,36 +481,17 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
           </div>
         </div>
       </div>
-
-      <p className="text-slate-600 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">
-        {request.content}
-      </p>
-
+      <p className="text-slate-600 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
       <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-        <button 
-          onClick={() => setShowComments(!showComments)}
-          className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors"
-        >
-          <MessageCircle size={16} />
-          Comentários
+        <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors">
+          <MessageCircle size={16} /> Comentários
         </button>
-
-        <button
-          onClick={() => onPray(request.id, isPraying)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 shadow-sm ${
-            isPraying 
-              ? 'bg-green-50 text-green-600 ring-1 ring-green-200'
-              : 'bg-slate-800 text-white hover:bg-slate-700'
-          } active:scale-95`}
-        >
+        <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 shadow-sm ${isPraying ? 'bg-green-50 text-green-600 ring-1 ring-green-200' : 'bg-slate-800 text-white hover:bg-slate-700'} active:scale-95`}>
           {isPraying ? (<>Orando <CheckCircle size={14} /></>) : (<>Eu Oro <Heart size={14} /></>)}
           <span className="ml-1 opacity-80 font-normal">| {prayedBy.length}</span>
         </button>
       </div>
-
-      {showComments && (
-        <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} />
-      )}
+      {showComments && <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} />}
     </div>
   );
 }
@@ -604,7 +504,6 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
   useEffect(() => {
     const db = getFirestore();
     const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
-    
     const unsubscribe = onSnapshot(commentsRef, (snapshot) => {
       const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
@@ -617,10 +516,8 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
   const handleSendComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-    
     const db = getFirestore();
     const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
-    
     try {
       await addDoc(commentsRef, {
         text: newComment,
@@ -637,7 +534,6 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
       <div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">
         {loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}
         {!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}
-        
         {comments.map(comment => (
           <div key={comment.id} className="flex flex-col bg-white p-2 rounded shadow-sm">
             <span className="text-[10px] font-bold text-blue-600 mb-0.5">{comment.authorName}</span>
@@ -645,15 +541,8 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
           </div>
         ))}
       </div>
-
       <form onSubmit={handleSendComment} className="flex gap-2">
-        <input 
-          type="text" 
-          placeholder="Escreva uma mensagem de apoio..." 
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          className="flex-1 text-xs p-2 rounded border border-slate-200 outline-none focus:border-blue-400"
-        />
+        <input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 outline-none focus:border-blue-400" />
         <button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors">
           <Send size={14} />
         </button>
