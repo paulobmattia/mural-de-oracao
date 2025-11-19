@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  signInAnonymously, 
   onAuthStateChanged,
-  signInWithCustomToken
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -19,9 +22,10 @@ import {
   arrayRemove,
   serverTimestamp
 } from 'firebase/firestore';
-import { Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, LogIn, Mail, Lock, CheckCircle } from 'lucide-react';
+import { Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, LogIn, Mail, Lock, CheckCircle, LogOut } from 'lucide-react';
 
-// --- Configuração do Firebase ---
+// --- SUA CONFIGURAÇÃO DO FIREBASE ---
+// COLE AQUI AS SUAS CHAVES REAIS QUE VOCÊ PEGOU NO CONSOLE DO FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyC7-wps2_vd6Ak2n7bu1E272qdbPP2JknA",
   authDomain: "mural-de-oracao.firebaseapp.com",
@@ -30,10 +34,12 @@ const firebaseConfig = {
   messagingSenderId: "523164992096",
   appId: "1:523164992096:web:ae30c09139c92bb326f905"
 };
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// ID fixo para produção
+const appId = "mural-v1"; 
 
 // --- Componente Principal ---
 export default function PrayerApp() {
@@ -43,44 +49,43 @@ export default function PrayerApp() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. Autenticação e Carregamento de Perfil
+  // 1. Monitorar Autenticação Real
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (error) {
-        console.error("Erro auth:", error);
-      }
-    };
-
-    initAuth();
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        // Tenta buscar perfil existente no Firestore
         const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
         try {
           const docSnap = await getDoc(profileRef);
           if (docSnap.exists()) {
             setUserProfile(docSnap.data());
+            // Se estava na tela de login ou splash, vai pra home
+            setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
+          } else {
+            // Se é usuário novo sem perfil no banco, força ficar na home mas sem dados ainda
+             setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           }
         } catch (e) {
           console.error("Erro ao buscar perfil", e);
         }
+      } else {
+        // Se deslogou, volta pro login
+        setUserProfile(null);
+        if (view !== 'splash') setView('login');
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [view]);
 
-  // 2. Listener de Pedidos
+  // 2. Listener de Pedidos (Só busca se tiver usuário)
   useEffect(() => {
     if (!user) return;
     const requestsRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
+    
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Ordenar: mais novos primeiro
       loadedRequests.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setRequests(loadedRequests);
       setLoading(false);
@@ -91,49 +96,77 @@ export default function PrayerApp() {
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Fluxo de Telas Inicial
+  // 3. Timer do Splash Screen
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (user && userProfile) {
-        setView('home');
-      } else {
+      // Após o splash, se não tiver usuário, manda pro login
+      if (!user) {
         setView('login');
       }
     }, 2500);
     return () => clearTimeout(timer);
-  }, [user, userProfile]);
+  }, [user]);
 
-  // --- Ações ---
+  // --- Funções de Login Reais ---
 
   const handleEmailLogin = async (email, password, isRegister) => {
-    if (!user) return;
     try {
-      const nameFromEmail = email.split('@')[0];
-      const displayName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
-      const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
-      const profileData = { name: displayName, email: email };
-      await setDoc(profileRef, profileData);
-      setUserProfile(profileData);
-      setView('home');
-    } catch (e) {
-      console.error("Erro ao salvar perfil:", e);
-      alert("Erro ao entrar. Tente novamente.");
+      let userCredential;
+      if (isRegister) {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Criar perfil padrão para novo usuário
+        const nameFromEmail = email.split('@')[0];
+        const displayName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+        await saveUserProfile(userCredential.user.uid, { name: displayName, email });
+      } else {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (error) {
+      console.error("Erro Auth:", error);
+      let msg = "Erro ao entrar.";
+      if (error.code === 'auth/invalid-credential') msg = "E-mail ou senha incorretos.";
+      if (error.code === 'auth/email-already-in-use') msg = "Este e-mail já está cadastrado.";
+      if (error.code === 'auth/weak-password') msg = "A senha deve ter pelo menos 6 caracteres.";
+      alert(msg);
     }
   };
 
   const handleGoogleLogin = async () => {
-    alert("No modo Preview, o Login Google é simulado. Em produção, isso abriria o popup do Google.");
-    if (!user) return;
     try {
-      const mockGoogleProfile = { name: "Usuário Google", email: "google@user.com" };
-      const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
-      await setDoc(profileRef, mockGoogleProfile);
-      setUserProfile(mockGoogleProfile);
-      setView('home');
-    } catch (e) {
-      console.error(e);
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      // Salvar/Atualizar perfil com dados do Google
+      await saveUserProfile(result.user.uid, {
+        name: result.user.displayName,
+        email: result.user.email
+      });
+    } catch (error) {
+      console.error("Erro Google:", error);
+      alert("Erro ao conectar com Google. Tente novamente.");
     }
   };
+
+  const saveUserProfile = async (uid, data) => {
+    try {
+      const profileRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'main');
+      // merge: true garante que não vamos apagar dados extras se existirem
+      await setDoc(profileRef, data, { merge: true });
+      setUserProfile(data);
+    } catch (e) {
+      console.error("Erro perfil:", e);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setView('login');
+    } catch (error) {
+      console.error("Erro sair:", error);
+    }
+  };
+
+  // --- Funções do App ---
 
   const handleCreateRequest = async (content) => {
     if (!content.trim() || !user) return;
@@ -149,6 +182,7 @@ export default function PrayerApp() {
       setView('read');
     } catch (error) {
       console.error("Erro criar pedido:", error);
+      alert("Erro ao enviar. Verifique sua conexão.");
     }
   };
 
@@ -164,11 +198,6 @@ export default function PrayerApp() {
     }
   };
 
-  const handleLogout = () => {
-    setUserProfile(null);
-    setView('login');
-  };
-
   // --- Roteamento ---
 
   if (view === 'splash') return <SplashScreen />;
@@ -176,7 +205,6 @@ export default function PrayerApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 overflow-hidden relative flex flex-col" style={{ fontFamily: "'Roboto', sans-serif" }}>
-      {/* Importando Roboto via style tag para garantir a fonte */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', sans-serif; }
@@ -209,7 +237,7 @@ export default function PrayerApp() {
   );
 }
 
-// --- Componentes ---
+// --- Componentes Visuais ---
 
 function SplashScreen() {
   return (
@@ -249,7 +277,6 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Inputs omitidos para brevidade, mantendo estrutura original */}
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
             <input
@@ -320,7 +347,7 @@ function Header({ view, setView, userProfile, onLogout }) {
   return (
     <div className="bg-white shadow-sm p-4 sticky top-0 z-10 flex items-center justify-between">
       <div className="w-10 flex justify-start">
-        {view !== 'home' && (
+        {view !== 'home' && view !== 'login' && (
           <button onClick={() => setView('home')} className="p-2 -ml-2 text-blue-600 hover:bg-blue-50 rounded-full">
             <ArrowLeft size={24} />
           </button>
@@ -328,16 +355,15 @@ function Header({ view, setView, userProfile, onLogout }) {
       </div>
       
       <div className="flex-1 text-center">
-        {/* APLICADO: Roboto Bold aqui */}
         <h1 className="text-lg font-bold text-blue-900 tracking-wide">
-          {view === 'home' ? 'Intercessão' : view === 'write' ? 'Novo Pedido' : 'Mural'}
+          {view === 'home' ? 'Intercessão' : view === 'write' ? 'Novo Pedido' : view === 'read' ? 'Mural' : ''}
         </h1>
       </div>
       
       <div className="w-10 flex justify-end">
         {view === 'home' && (
           <button onClick={onLogout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Sair">
-            <LogIn size={20} className="rotate-180" />
+            <LogOut size={20} />
           </button>
         )}
       </div>
@@ -347,10 +373,8 @@ function Header({ view, setView, userProfile, onLogout }) {
 
 function HomeScreen({ onViewChange, requestCount, userName }) {
   return (
-    // MODIFICADO: Removido 'justify-center' e 'h-[calc]', adicionado 'pt-8'
     <div className="p-6 flex flex-col gap-6 pb-20 animate-in fade-in pt-8">
       <div className="text-center mb-2">
-        {/* APLICADO: Roboto Bold */}
         <h2 className="text-2xl font-bold text-slate-800 mb-2">
           Olá, {userName || 'Visitante'}
         </h2>
@@ -366,7 +390,6 @@ function HomeScreen({ onViewChange, requestCount, userName }) {
         <div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
           <Plus size={32} />
         </div>
-        {/* APLICADO: Roboto Bold */}
         <span className="text-lg font-bold text-slate-700">Deixar um Pedido</span>
         <span className="text-xs text-slate-400 text-center">Compartilhe sua necessidade</span>
       </button>
@@ -378,7 +401,6 @@ function HomeScreen({ onViewChange, requestCount, userName }) {
         <div className="bg-purple-100 p-4 rounded-full text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
           <BookOpen size={32} />
         </div>
-        {/* APLICADO: Roboto Bold */}
         <span className="text-lg font-bold text-slate-700">Interceder</span>
         <span className="text-xs text-slate-400 text-center">
           {requestCount > 0 ? `${requestCount} pedidos ativos na comunidade` : 'Seja o primeiro a ver os pedidos'}
