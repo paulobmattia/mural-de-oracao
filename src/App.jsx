@@ -21,7 +21,8 @@ import {
   getDoc,
   arrayUnion,
   arrayRemove,
-  serverTimestamp
+  serverTimestamp,
+  increment
 } from 'firebase/firestore';
 import { 
   Heart, 
@@ -160,7 +161,8 @@ export default function PrayerApp() {
         isAnonymous: isAnonymous,
         content: content,
         createdAt: serverTimestamp(),
-        prayedBy: []
+        prayedBy: [],
+        commentCount: 0 // Inicializa contador
       });
       setView('read');
     } catch (error) { alert("Erro ao enviar."); }
@@ -256,12 +258,7 @@ function SplashScreen() {
   return (
     <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
       <div className="animate-fade-simple flex flex-col items-center">
-        {/* Ajustado para .png */}
-        <img 
-          src="/icon.png" 
-          alt="Logo" 
-          className="w-40 h-40 object-contain mb-6"
-        />
+        <img src="/icon.png" alt="Logo" className="w-40 h-40 object-contain mb-6" />
       </div>
     </div>
   );
@@ -288,7 +285,6 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-             {/* Ajustado para .png */}
              <img src="/icon.png" alt="Logo" className="w-24 h-24 object-contain" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800">{isRegister ? 'Criar Conta' : 'Bem-vindo de volta'}</h2>
@@ -460,6 +456,9 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
   const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
+  // Quantidade de comentários (se undefined, assume 0)
+  const commentCount = request.commentCount || 0;
+
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group">
       {isAuthor && (
@@ -483,13 +482,43 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
       </div>
       <p className="text-slate-600 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
       <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-        <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors">
-          <MessageCircle size={16} /> Comentários
+        
+        <button 
+          onClick={() => setShowComments(!showComments)}
+          className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors group"
+        >
+          <MessageCircle size={16} />
+          Comentários
+          {commentCount > 0 && (
+            <span className="bg-[#649fce] text-white px-1.5 py-0.5 rounded-md text-[10px] font-bold ml-1">
+              {commentCount}
+            </span>
+          )}
         </button>
-        <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 shadow-sm ${isPraying ? 'bg-green-50 text-green-600 ring-1 ring-green-200' : 'bg-slate-800 text-white hover:bg-slate-700'} active:scale-95`}>
-          {isPraying ? (<>Orando <CheckCircle size={14} /></>) : (<>Eu Oro <Heart size={14} /></>)}
-          <span className="ml-1 opacity-80 font-normal">| {prayedBy.length}</span>
+
+        {/* BOTÃO "EU ORO" ATUALIZADO */}
+        <button
+          onClick={() => onPray(request.id, isPraying)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${
+            isPraying 
+              ? 'bg-[#649fce] text-white border-[#649fce]' // Ativo: Azul com texto branco e ícone vermelho (no children)
+              : 'bg-transparent border-slate-300 text-slate-500 hover:border-red-200 hover:text-red-500' // Inativo: Discreto, vermelho no hover
+          } active:scale-95`}
+        >
+          {isPraying ? (
+            <>
+              Orando <Heart size={14} className="fill-red-500 text-red-500" /> 
+            </>
+          ) : (
+            <>
+              Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" />
+            </>
+          )}
+          <span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>
+             | {prayedBy.length}
+          </span>
         </button>
+
       </div>
       {showComments && <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} />}
     </div>
@@ -517,14 +546,23 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
     e.preventDefault();
     if (!newComment.trim()) return;
     const db = getFirestore();
-    const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
+    
     try {
+      // 1. Adicionar o comentário na sub-coleção
+      const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
       await addDoc(commentsRef, {
         text: newComment,
         authorName: userProfile?.name || 'Anônimo',
         authorId: currentUser.uid,
         createdAt: serverTimestamp()
       });
+
+      // 2. Atualizar o contador no pedido principal
+      const requestRef = doc(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId);
+      await updateDoc(requestRef, {
+        commentCount: increment(1)
+      });
+
       setNewComment('');
     } catch (err) { console.error(err); }
   };
