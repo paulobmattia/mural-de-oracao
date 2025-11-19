@@ -36,13 +36,12 @@ import {
   Lock, 
   CheckCircle, 
   LogOut, 
-  Trash2, 
   MessageCircle, 
-  X 
+  X,
+  AlertTriangle
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
-// MANTENHA AS CHAVES QUE VOCÊ JÁ CONFIGUROU NO SEU ARQUIVO ANTERIOR
 const firebaseConfig = {
   apiKey: "AIzaSyC7-wps2_vd6Ak2n7bu1E272qdbPP2JknA",
   authDomain: "mural-de-oracao.firebaseapp.com",
@@ -64,6 +63,9 @@ export default function PrayerApp() {
   const [view, setView] = useState('splash'); 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Estado para o Modal de Confirmação Personalizado
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, requestId: null });
 
   // 1. Monitorar Autenticação
   useEffect(() => {
@@ -120,7 +122,6 @@ export default function PrayerApp() {
       if (isRegister) {
         if (!name.trim()) { alert("Por favor, informe seu nome."); return; }
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        // Usa o nome digitado pelo usuário
         await saveUserProfile(userCredential.user.uid, { name: name.trim(), email });
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -166,7 +167,7 @@ export default function PrayerApp() {
       await addDoc(collectionRef, {
         authorName: userProfile?.name || 'Desconhecido',
         authorId: user.uid,
-        isAnonymous: isAnonymous, // Flag para controlar exibição
+        isAnonymous: isAnonymous,
         content: content,
         createdAt: serverTimestamp(),
         prayedBy: []
@@ -178,10 +179,17 @@ export default function PrayerApp() {
     }
   };
 
-  const handleDeleteRequest = async (requestId) => {
-    if (!confirm("Deseja realmente excluir este pedido?")) return;
+  // Função chamada ao clicar no X (apenas abre o modal)
+  const handleDeleteRequestClick = (requestId) => {
+    setDeleteModal({ isOpen: true, requestId });
+  };
+
+  // Função que realmente deleta (chamada pelo Modal)
+  const confirmDelete = async () => {
+    if (!deleteModal.requestId) return;
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'prayer_requests', requestId));
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'prayer_requests', deleteModal.requestId));
+      setDeleteModal({ isOpen: false, requestId: null });
     } catch (error) {
       console.error("Erro ao deletar:", error);
       alert("Erro ao excluir.");
@@ -225,11 +233,46 @@ export default function PrayerApp() {
             loading={loading} 
             currentUser={user}
             onPray={handlePrayInteraction}
-            onDelete={handleDeleteRequest}
+            onDeleteClick={handleDeleteRequestClick} // Passando a nova função
             userProfile={userProfile}
           />
         )}
       </main>
+
+      {/* MODAL DE CONFIRMAÇÃO PERSONALIZADO */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-2">
+                <AlertTriangle size={24} />
+              </div>
+              
+              <h3 className="text-xl font-bold text-slate-800">ATENÇÃO!</h3>
+              
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Tem certeza que deseja excluir este pedido de oração? Essa ação não pode ser desfeita.
+              </p>
+
+              <div className="flex gap-3 w-full mt-2">
+                <button 
+                  onClick={() => setDeleteModal({ isOpen: false, requestId: null })}
+                  className="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 px-4 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -250,7 +293,7 @@ function SplashScreen() {
 
 function LoginScreen({ onEmailLogin, onGoogleLogin }) {
   const [isRegister, setIsRegister] = useState(false);
-  const [name, setName] = useState(''); // Novo estado para Nome
+  const [name, setName] = useState(''); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -276,8 +319,6 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          
-          {/* Campo de Nome (Só aparece no cadastro) */}
           {isRegister && (
             <div className="relative group animate-in slide-in-from-top-2 fade-in duration-300">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
@@ -407,7 +448,7 @@ function HomeScreen({ onViewChange, requestCount, userName }) {
 
 function WriteScreen({ onSubmit, userName }) {
   const [content, setContent] = useState('');
-  const [isAnonymous, setIsAnonymous] = useState(false); // Novo estado para toggle
+  const [isAnonymous, setIsAnonymous] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -433,7 +474,6 @@ function WriteScreen({ onSubmit, userName }) {
              </div>
           </div>
           
-          {/* Toggle Switch */}
           <button
             type="button"
             onClick={() => setIsAnonymous(!isAnonymous)}
@@ -465,7 +505,7 @@ function WriteScreen({ onSubmit, userName }) {
   );
 }
 
-function ReadScreen({ requests, loading, onPray, onDelete, currentUser, userProfile }) {
+function ReadScreen({ requests, loading, onPray, onDeleteClick, currentUser, userProfile }) {
   if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
   if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Ainda não há pedidos.</div>;
 
@@ -478,32 +518,28 @@ function ReadScreen({ requests, loading, onPray, onDelete, currentUser, userProf
           currentUser={currentUser}
           userProfile={userProfile}
           onPray={onPray} 
-          onDelete={onDelete}
+          onDeleteClick={onDeleteClick}
         />
       ))}
     </div>
   );
 }
 
-function PrayerCard({ request, currentUser, userProfile, onPray, onDelete }) {
+function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }) {
   const prayedBy = request.prayedBy || [];
   const isPraying = prayedBy.includes(currentUser?.uid);
   const isAuthor = request.authorId === currentUser?.uid;
   
-  // Estado para controlar comentários
   const [showComments, setShowComments] = useState(false);
-
-  // Lógica de exibição do nome
   const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group">
       
-      {/* Botão de Excluir (Só aparece para o autor) */}
       {isAuthor && (
         <button 
-          onClick={() => onDelete(request.id)}
+          onClick={() => onDeleteClick(request.id)}
           className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1"
         >
           <X size={16} />
@@ -553,7 +589,6 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDelete }) {
         </button>
       </div>
 
-      {/* Seção de Comentários Expansível */}
       {showComments && (
         <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} />
       )}
@@ -566,15 +601,13 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Buscar comentários (Sub-coleção)
   useEffect(() => {
     const db = getFirestore();
-    // Como temos a regra de "No Complex Queries", vamos buscar a coleção direta e ordenar no client
     const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
     
     const unsubscribe = onSnapshot(commentsRef, (snapshot) => {
       const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)); // Mais antigos no topo
+      loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
       setComments(loadedComments);
       setLoading(false);
     });
