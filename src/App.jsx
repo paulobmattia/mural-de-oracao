@@ -15,6 +15,7 @@ import {
   addDoc, 
   onSnapshot, 
   updateDoc, 
+  deleteDoc,
   doc, 
   setDoc,
   getDoc,
@@ -22,10 +23,26 @@ import {
   arrayRemove,
   serverTimestamp
 } from 'firebase/firestore';
-import { Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, LogIn, Mail, Lock, CheckCircle, LogOut } from 'lucide-react';
+import { 
+  Heart, 
+  Send, 
+  User, 
+  ArrowLeft, 
+  Sparkles, 
+  Plus, 
+  BookOpen, 
+  LogIn, 
+  Mail, 
+  Lock, 
+  CheckCircle, 
+  LogOut, 
+  Trash2, 
+  MessageCircle, 
+  X 
+} from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
-// COLE AQUI AS SUAS CHAVES REAIS QUE VOCÊ PEGOU NO CONSOLE DO FIREBASE
+// MANTENHA AS CHAVES QUE VOCÊ JÁ CONFIGUROU NO SEU ARQUIVO ANTERIOR
 const firebaseConfig = {
   apiKey: "AIzaSyC7-wps2_vd6Ak2n7bu1E272qdbPP2JknA",
   authDomain: "mural-de-oracao.firebaseapp.com",
@@ -38,7 +55,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// ID fixo para produção
 const appId = "mural-v1"; 
 
 // --- Componente Principal ---
@@ -49,28 +65,24 @@ export default function PrayerApp() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. Monitorar Autenticação Real
+  // 1. Monitorar Autenticação
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Tenta buscar perfil existente no Firestore
         const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
         try {
           const docSnap = await getDoc(profileRef);
           if (docSnap.exists()) {
             setUserProfile(docSnap.data());
-            // Se estava na tela de login ou splash, vai pra home
             setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           } else {
-            // Se é usuário novo sem perfil no banco, força ficar na home mas sem dados ainda
              setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           }
         } catch (e) {
-          console.error("Erro ao buscar perfil", e);
+          console.error("Erro perfil", e);
         }
       } else {
-        // Se deslogou, volta pro login
         setUserProfile(null);
         if (view !== 'splash') setView('login');
       }
@@ -78,56 +90,44 @@ export default function PrayerApp() {
     return () => unsubscribe();
   }, [view]);
 
-  // 2. Listener de Pedidos (Só busca se tiver usuário)
+  // 2. Listener de Pedidos
   useEffect(() => {
     if (!user) return;
     const requestsRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
     
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Ordenar: mais novos primeiro
       loadedRequests.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setRequests(loadedRequests);
       setLoading(false);
-    }, (error) => {
-      console.error("Erro buscar pedidos:", error);
-      setLoading(false);
-    });
+    }, (error) => { console.error(error); setLoading(false); });
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Timer do Splash Screen
+  // 3. Timer Splash
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Após o splash, se não tiver usuário, manda pro login
-      if (!user) {
-        setView('login');
-      }
+      if (!user) setView('login');
     }, 2500);
     return () => clearTimeout(timer);
   }, [user]);
 
-  // --- Funções de Login Reais ---
+  // --- Ações de Autenticação ---
 
-  const handleEmailLogin = async (email, password, isRegister) => {
+  const handleEmailLogin = async (email, password, isRegister, name) => {
     try {
       let userCredential;
       if (isRegister) {
+        if (!name.trim()) { alert("Por favor, informe seu nome."); return; }
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        // Criar perfil padrão para novo usuário
-        const nameFromEmail = email.split('@')[0];
-        const displayName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
-        await saveUserProfile(userCredential.user.uid, { name: displayName, email });
+        // Usa o nome digitado pelo usuário
+        await saveUserProfile(userCredential.user.uid, { name: name.trim(), email });
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (error) {
       console.error("Erro Auth:", error);
-      let msg = "Erro ao entrar.";
-      if (error.code === 'auth/invalid-credential') msg = "E-mail ou senha incorretos.";
-      if (error.code === 'auth/email-already-in-use') msg = "Este e-mail já está cadastrado.";
-      if (error.code === 'auth/weak-password') msg = "A senha deve ter pelo menos 6 caracteres.";
-      alert(msg);
+      alert("Erro na autenticação: " + error.code);
     }
   };
 
@@ -135,54 +135,56 @@ export default function PrayerApp() {
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      // Salvar/Atualizar perfil com dados do Google
       await saveUserProfile(result.user.uid, {
         name: result.user.displayName,
         email: result.user.email
       });
     } catch (error) {
       console.error("Erro Google:", error);
-      alert("Erro ao conectar com Google. Tente novamente.");
     }
   };
 
   const saveUserProfile = async (uid, data) => {
     try {
       const profileRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'main');
-      // merge: true garante que não vamos apagar dados extras se existirem
       await setDoc(profileRef, data, { merge: true });
       setUserProfile(data);
-    } catch (e) {
-      console.error("Erro perfil:", e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setView('login');
-    } catch (error) {
-      console.error("Erro sair:", error);
-    }
+    await signOut(auth);
+    setView('login');
   };
 
-  // --- Funções do App ---
+  // --- Ações do App ---
 
-  const handleCreateRequest = async (content) => {
+  const handleCreateRequest = async (content, isAnonymous) => {
     if (!content.trim() || !user) return;
     try {
       const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
       await addDoc(collectionRef, {
-        authorName: userProfile?.name || 'Anônimo',
+        authorName: userProfile?.name || 'Desconhecido',
         authorId: user.uid,
+        isAnonymous: isAnonymous, // Flag para controlar exibição
         content: content,
         createdAt: serverTimestamp(),
         prayedBy: []
       });
       setView('read');
     } catch (error) {
-      console.error("Erro criar pedido:", error);
-      alert("Erro ao enviar. Verifique sua conexão.");
+      console.error("Erro ao criar:", error);
+      alert("Erro ao enviar.");
+    }
+  };
+
+  const handleDeleteRequest = async (requestId) => {
+    if (!confirm("Deseja realmente excluir este pedido?")) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'prayer_requests', requestId));
+    } catch (error) {
+      console.error("Erro ao deletar:", error);
+      alert("Erro ao excluir.");
     }
   };
 
@@ -193,9 +195,7 @@ export default function PrayerApp() {
       await updateDoc(docRef, {
         prayedBy: isPraying ? arrayRemove(user.uid) : arrayUnion(user.uid)
       });
-    } catch (error) {
-      console.error("Erro interagir:", error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   // --- Roteamento ---
@@ -210,12 +210,7 @@ export default function PrayerApp() {
         body { font-family: 'Roboto', sans-serif; }
       `}</style>
 
-      <Header 
-        view={view} 
-        setView={setView} 
-        userProfile={userProfile}
-        onLogout={handleLogout}
-      />
+      <Header view={view} setView={setView} onLogout={handleLogout} />
 
       <main className="flex-1 max-w-md mx-auto w-full relative">
         {view === 'home' && (
@@ -228,8 +223,10 @@ export default function PrayerApp() {
           <ReadScreen 
             requests={requests} 
             loading={loading} 
-            currentUserId={user?.uid}
-            onPray={handlePrayInteraction} 
+            currentUser={user}
+            onPray={handlePrayInteraction}
+            onDelete={handleDeleteRequest}
+            userProfile={userProfile}
           />
         )}
       </main>
@@ -237,7 +234,7 @@ export default function PrayerApp() {
   );
 }
 
-// --- Componentes Visuais ---
+// --- Componentes ---
 
 function SplashScreen() {
   return (
@@ -253,6 +250,7 @@ function SplashScreen() {
 
 function LoginScreen({ onEmailLogin, onGoogleLogin }) {
   const [isRegister, setIsRegister] = useState(false);
+  const [name, setName] = useState(''); // Novo estado para Nome
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -260,8 +258,9 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) return;
+    if (isRegister && !name) return;
     setLoading(true);
-    await onEmailLogin(email, password, isRegister);
+    await onEmailLogin(email, password, isRegister, name);
     setLoading(false);
   };
 
@@ -277,6 +276,22 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          
+          {/* Campo de Nome (Só aparece no cadastro) */}
+          {isRegister && (
+            <div className="relative group animate-in slide-in-from-top-2 fade-in duration-300">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
+              <input
+                type="text"
+                required
+                placeholder="Seu nome completo"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all"
+              />
+            </div>
+          )}
+
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
             <input
@@ -316,11 +331,7 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
           <div className="h-px flex-1 bg-slate-100"></div>
         </div>
 
-        <button 
-          type="button"
-          onClick={onGoogleLogin}
-          className="w-full bg-white border border-slate-200 text-slate-700 p-4 rounded-xl font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-3"
-        >
+        <button type="button" onClick={onGoogleLogin} className="w-full bg-white border border-slate-200 text-slate-700 p-4 rounded-xl font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-3">
           <svg className="w-5 h-5" viewBox="0 0 24 24">
              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -331,10 +342,7 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
         </button>
 
         <div className="mt-8 text-center">
-          <button 
-            onClick={() => setIsRegister(!isRegister)}
-            className="text-sm text-slate-500 hover:text-blue-600 transition-colors font-medium"
-          >
+          <button onClick={() => setIsRegister(!isRegister)} className="text-sm text-slate-500 hover:text-blue-600 transition-colors font-medium">
             {isRegister ? 'Já tem uma conta? Faça login' : 'Não tem conta? Cadastre-se'}
           </button>
         </div>
@@ -343,7 +351,7 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
   );
 }
 
-function Header({ view, setView, userProfile, onLogout }) {
+function Header({ view, setView, onLogout }) {
   return (
     <div className="bg-white shadow-sm p-4 sticky top-0 z-10 flex items-center justify-between">
       <div className="w-10 flex justify-start">
@@ -353,13 +361,11 @@ function Header({ view, setView, userProfile, onLogout }) {
           </button>
         )}
       </div>
-      
       <div className="flex-1 text-center">
         <h1 className="text-lg font-bold text-blue-900 tracking-wide">
           {view === 'home' ? 'Intercessão' : view === 'write' ? 'Novo Pedido' : view === 'read' ? 'Mural' : ''}
         </h1>
       </div>
-      
       <div className="w-10 flex justify-end">
         {view === 'home' && (
           <button onClick={onLogout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Sair">
@@ -375,35 +381,24 @@ function HomeScreen({ onViewChange, requestCount, userName }) {
   return (
     <div className="p-6 flex flex-col gap-6 pb-20 animate-in fade-in pt-8">
       <div className="text-center mb-2">
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">
-          Olá, {userName || 'Visitante'}
-        </h2>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Olá, {userName || 'Visitante'}</h2>
         <p className="text-slate-500 text-sm italic bg-blue-50 inline-block px-4 py-1 rounded-full">
           "Orai uns pelos outros para serdes curados."
         </p>
       </div>
-
-      <button 
-        onClick={() => onViewChange('write')}
-        className="group bg-white p-6 rounded-2xl shadow-md border border-blue-100 hover:border-blue-300 transition-all active:scale-95 flex flex-col items-center gap-3"
-      >
+      <button onClick={() => onViewChange('write')} className="group bg-white p-6 rounded-2xl shadow-md border border-blue-100 hover:border-blue-300 transition-all active:scale-95 flex flex-col items-center gap-3">
         <div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
           <Plus size={32} />
         </div>
         <span className="text-lg font-bold text-slate-700">Deixar um Pedido</span>
-        <span className="text-xs text-slate-400 text-center">Compartilhe sua necessidade</span>
       </button>
-
-      <button 
-        onClick={() => onViewChange('read')}
-        className="group bg-white p-6 rounded-2xl shadow-md border border-purple-100 hover:border-purple-300 transition-all active:scale-95 flex flex-col items-center gap-3"
-      >
+      <button onClick={() => onViewChange('read')} className="group bg-white p-6 rounded-2xl shadow-md border border-purple-100 hover:border-purple-300 transition-all active:scale-95 flex flex-col items-center gap-3">
         <div className="bg-purple-100 p-4 rounded-full text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
           <BookOpen size={32} />
         </div>
         <span className="text-lg font-bold text-slate-700">Interceder</span>
         <span className="text-xs text-slate-400 text-center">
-          {requestCount > 0 ? `${requestCount} pedidos ativos na comunidade` : 'Seja o primeiro a ver os pedidos'}
+          {requestCount > 0 ? `${requestCount} pedidos ativos` : 'Seja o primeiro a ver os pedidos'}
         </span>
       </button>
     </div>
@@ -412,14 +407,14 @@ function HomeScreen({ onViewChange, requestCount, userName }) {
 
 function WriteScreen({ onSubmit, userName }) {
   const [content, setContent] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false); // Novo estado para toggle
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!content.trim()) return;
-    
     setIsSubmitting(true);
-    await onSubmit(content);
+    await onSubmit(content, isAnonymous);
     setIsSubmitting(false);
   };
 
@@ -427,20 +422,30 @@ function WriteScreen({ onSubmit, userName }) {
     <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         
-        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center gap-3 text-blue-800">
-          <div className="bg-blue-200 p-1.5 rounded-full">
-             <User size={16} className="text-blue-800" />
+        <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+             <div className={`p-2 rounded-full ${isAnonymous ? 'bg-slate-100' : 'bg-blue-100'}`}>
+               <User size={20} className={isAnonymous ? 'text-slate-500' : 'text-blue-600'} />
+             </div>
+             <div className="flex flex-col">
+               <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Publicar como</span>
+               <span className="font-medium text-slate-700">{isAnonymous ? 'Anônimo' : (userName || 'Você')}</span>
+             </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs text-blue-600 font-bold uppercase tracking-wider">Publicando como</span>
-            <span className="font-medium text-lg">{userName || 'Anônimo'}</span>
-          </div>
+          
+          {/* Toggle Switch */}
+          <button
+            type="button"
+            onClick={() => setIsAnonymous(!isAnonymous)}
+            className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300' : 'bg-blue-500'}`}
+          >
+            <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-sm transition-transform duration-300 ${isAnonymous ? 'translate-x-0' : 'translate-x-5'}`}></div>
+          </button>
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
           <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
-            <Sparkles size={16} />
-            Seu Pedido de Oração
+            <Sparkles size={16} /> Seu Pedido de Oração
           </label>
           <textarea
             required
@@ -452,41 +457,17 @@ function WriteScreen({ onSubmit, userName }) {
           />
         </div>
 
-        <button
-          disabled={isSubmitting}
-          type="submit"
-          className="bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
-        >
-          {isSubmitting ? 'Enviando...' : (
-            <>
-              <Send size={20} />
-              Enviar Pedido
-            </>
-          )}
+        <button disabled={isSubmitting} type="submit" className="bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
+          {isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}
         </button>
       </form>
     </div>
   );
 }
 
-function ReadScreen({ requests, loading, onPray, currentUserId }) {
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-        <p>Carregando...</p>
-      </div>
-    );
-  }
-
-  if (requests.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-slate-400 p-6 text-center">
-        <Sparkles size={48} className="mb-4 opacity-50" />
-        <p>Ainda não há pedidos.</p>
-      </div>
-    );
-  }
+function ReadScreen({ requests, loading, onPray, onDelete, currentUser, userProfile }) {
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
+  if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Ainda não há pedidos.</div>;
 
   return (
     <div className="p-4 flex flex-col gap-4 pb-20 animate-in fade-in duration-500">
@@ -494,33 +475,53 @@ function ReadScreen({ requests, loading, onPray, currentUserId }) {
         <PrayerCard 
           key={req.id} 
           request={req} 
-          currentUserId={currentUserId} 
+          currentUser={currentUser}
+          userProfile={userProfile}
           onPray={onPray} 
+          onDelete={onDelete}
         />
       ))}
     </div>
   );
 }
 
-function PrayerCard({ request, currentUserId, onPray }) {
+function PrayerCard({ request, currentUser, userProfile, onPray, onDelete }) {
   const prayedBy = request.prayedBy || [];
-  const isPraying = prayedBy.includes(currentUserId);
-  const count = prayedBy.length;
+  const isPraying = prayedBy.includes(currentUser?.uid);
+  const isAuthor = request.authorId === currentUser?.uid;
+  
+  // Estado para controlar comentários
+  const [showComments, setShowComments] = useState(false);
+
+  // Lógica de exibição do nome
+  const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
+  const avatarInitial = displayName.charAt(0).toUpperCase();
 
   return (
-    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
-      <div className="flex justify-between items-start mb-3">
+    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group">
+      
+      {/* Botão de Excluir (Só aparece para o autor) */}
+      {isAuthor && (
+        <button 
+          onClick={() => onDelete(request.id)}
+          className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1"
+        >
+          <X size={16} />
+        </button>
+      )}
+
+      <div className="flex justify-between items-start mb-3 pr-6">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${
-            request.authorId === currentUserId ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
+            isAuthor ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
           }`}>
-            {request.authorName.substring(0, 2).toUpperCase()}
+            {avatarInitial}
           </div>
           <div>
-            <h3 className="font-bold text-slate-800 text-sm">{request.authorName}</h3>
+            <h3 className="font-bold text-slate-800 text-sm">{displayName}</h3>
             <p className="text-xs text-slate-400 flex items-center gap-1">
                {request.createdAt ? new Date(request.createdAt.seconds * 1000).toLocaleDateString() : 'Agora'}
-               {request.authorId === currentUserId && <span className="bg-blue-50 text-blue-600 px-1.5 rounded text-[10px] font-bold tracking-wide">VOCÊ</span>}
+               {isAuthor && <span className="bg-blue-50 text-blue-600 px-1.5 rounded text-[10px] font-bold tracking-wide">VOCÊ</span>}
             </p>
           </div>
         </div>
@@ -531,34 +532,99 @@ function PrayerCard({ request, currentUserId, onPray }) {
       </p>
 
       <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-        <span className="text-xs text-slate-500 flex items-center gap-1.5 font-bold">
-          {count > 0 && (
-             <div className="flex -space-x-2">
-                {[...Array(Math.min(count, 3))].map((_, i) => (
-                  <div key={i} className="w-5 h-5 rounded-full bg-red-100 border-2 border-white flex items-center justify-center">
-                    <Heart size={10} className="text-red-400 fill-red-400" />
-                  </div>
-                ))}
-             </div>
-          )}
-          {count === 0 ? 'Seja o primeiro a orar' : `${count} orando`}
-        </span>
+        <button 
+          onClick={() => setShowComments(!showComments)}
+          className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors"
+        >
+          <MessageCircle size={16} />
+          Comentários
+        </button>
 
         <button
           onClick={() => onPray(request.id, isPraying)}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 shadow-sm ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 shadow-sm ${
             isPraying 
-              ? 'bg-green-50 text-green-600 ring-1 ring-green-200 hover:bg-green-100'
-              : 'bg-slate-800 text-white hover:bg-slate-700 hover:shadow-md'
+              ? 'bg-green-50 text-green-600 ring-1 ring-green-200'
+              : 'bg-slate-800 text-white hover:bg-slate-700'
           } active:scale-95`}
         >
-          {isPraying ? (
-            <>Orando <CheckCircle size={14} /></>
-          ) : (
-            <>Eu Oro <Heart size={14} className={isPraying ? "fill-current" : ""} /></>
-          )}
+          {isPraying ? (<>Orando <CheckCircle size={14} /></>) : (<>Eu Oro <Heart size={14} /></>)}
+          <span className="ml-1 opacity-80 font-normal">| {prayedBy.length}</span>
         </button>
       </div>
+
+      {/* Seção de Comentários Expansível */}
+      {showComments && (
+        <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} />
+      )}
+    </div>
+  );
+}
+
+function CommentsSection({ requestId, currentUser, userProfile }) {
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // Buscar comentários (Sub-coleção)
+  useEffect(() => {
+    const db = getFirestore();
+    // Como temos a regra de "No Complex Queries", vamos buscar a coleção direta e ordenar no client
+    const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
+    
+    const unsubscribe = onSnapshot(commentsRef, (snapshot) => {
+      const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)); // Mais antigos no topo
+      setComments(loadedComments);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [requestId]);
+
+  const handleSendComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    
+    const db = getFirestore();
+    const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
+    
+    try {
+      await addDoc(commentsRef, {
+        text: newComment,
+        authorName: userProfile?.name || 'Anônimo',
+        authorId: currentUser.uid,
+        createdAt: serverTimestamp()
+      });
+      setNewComment('');
+    } catch (err) { console.error(err); }
+  };
+
+  return (
+    <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100 animate-in fade-in slide-in-from-top-2">
+      <div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">
+        {loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}
+        {!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}
+        
+        {comments.map(comment => (
+          <div key={comment.id} className="flex flex-col bg-white p-2 rounded shadow-sm">
+            <span className="text-[10px] font-bold text-blue-600 mb-0.5">{comment.authorName}</span>
+            <span className="text-xs text-slate-700">{comment.text}</span>
+          </div>
+        ))}
+      </div>
+
+      <form onSubmit={handleSendComment} className="flex gap-2">
+        <input 
+          type="text" 
+          placeholder="Escreva uma mensagem de apoio..." 
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          className="flex-1 text-xs p-2 rounded border border-slate-200 outline-none focus:border-blue-400"
+        />
+        <button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors">
+          <Send size={14} />
+        </button>
+      </form>
     </div>
   );
 }
