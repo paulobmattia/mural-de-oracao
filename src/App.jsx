@@ -162,7 +162,7 @@ export default function PrayerApp() {
         content: content,
         createdAt: serverTimestamp(),
         prayedBy: [],
-        commentCount: 0 // Inicializa contador
+        commentCount: 0
       });
       setView('read');
     } catch (error) { alert("Erro ao enviar."); }
@@ -209,7 +209,8 @@ export default function PrayerApp() {
 
       <Header view={view} setView={setView} onLogout={handleLogout} />
 
-      <main className="flex-1 max-w-md mx-auto w-full relative">
+      {/* AQUI ESTÁ A MÁGICA DA RESPONSIVIDADE: md:max-w-6xl permite que a tela cresça */}
+      <main className="flex-1 w-full max-w-md md:max-w-6xl mx-auto relative bg-slate-50 md:px-6">
         {view === 'home' && (
           <HomeScreen onViewChange={setView} requestCount={requests.length} userName={userProfile?.name} />
         )}
@@ -365,28 +366,39 @@ function Header({ view, setView, onLogout }) {
 
 function HomeScreen({ onViewChange, requestCount, userName }) {
   return (
-    <div className="p-6 flex flex-col gap-6 pb-20 animate-in fade-in pt-8">
-      <div className="text-center mb-2">
+    <div className="p-6 flex flex-col gap-6 pb-20 animate-in fade-in pt-8 md:pt-16 max-w-4xl mx-auto">
+      <div className="text-center mb-4">
         <h2 className="text-2xl font-bold text-slate-800 mb-2">Olá, {userName || 'Visitante'}</h2>
         <p className="text-slate-500 text-sm italic bg-blue-50 inline-block px-4 py-1 rounded-full">
           "Orai uns pelos outros para serdes curados."
         </p>
       </div>
-      <button onClick={() => onViewChange('write')} className="group bg-white p-6 rounded-2xl shadow-md border border-blue-100 hover:border-blue-300 transition-all active:scale-95 flex flex-col items-center gap-3">
-        <div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-          <Plus size={32} />
-        </div>
-        <span className="text-lg font-bold text-slate-700">Deixar um Pedido</span>
-      </button>
-      <button onClick={() => onViewChange('read')} className="group bg-white p-6 rounded-2xl shadow-md border border-purple-100 hover:border-purple-300 transition-all active:scale-95 flex flex-col items-center gap-3">
-        <div className="bg-purple-100 p-4 rounded-full text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-          <BookOpen size={32} />
-        </div>
-        <span className="text-lg font-bold text-slate-700">Interceder</span>
-        <span className="text-xs text-slate-400 text-center">
-          {requestCount > 0 ? `${requestCount} pedidos ativos` : 'Seja o primeiro a ver os pedidos'}
-        </span>
-      </button>
+      
+      {/* Layout Flexível: Coluna no celular, Linha no computador */}
+      <div className="flex flex-col md:flex-row gap-6 justify-center">
+        <button 
+          onClick={() => onViewChange('write')} 
+          className="group bg-white p-6 rounded-2xl shadow-md border border-blue-100 hover:border-blue-300 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
+        >
+          <div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+            <Plus size={32} />
+          </div>
+          <span className="text-lg font-bold text-slate-700">Deixar um Pedido</span>
+        </button>
+
+        <button 
+          onClick={() => onViewChange('read')} 
+          className="group bg-white p-6 rounded-2xl shadow-md border border-purple-100 hover:border-purple-300 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
+        >
+          <div className="bg-purple-100 p-4 rounded-full text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+            <BookOpen size={32} />
+          </div>
+          <span className="text-lg font-bold text-slate-700">Interceder</span>
+          <span className="text-xs text-slate-400 text-center">
+            {requestCount > 0 ? `${requestCount} pedidos ativos` : 'Seja o primeiro a ver os pedidos'}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -405,7 +417,7 @@ function WriteScreen({ onSubmit, userName }) {
   };
 
   return (
-    <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
@@ -440,7 +452,8 @@ function ReadScreen({ requests, loading, onPray, onDeleteClick, currentUser, use
   if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Ainda não há pedidos.</div>;
 
   return (
-    <div className="p-4 flex flex-col gap-4 pb-20 animate-in fade-in duration-500">
+    // Grid Responsivo: 1 coluna mobile, 2 colunas tablet, 3 colunas desktop
+    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 animate-in fade-in duration-500">
       {requests.map((req) => (
         <PrayerCard key={req.id} request={req} currentUser={currentUser} userProfile={userProfile} onPray={onPray} onDeleteClick={onDeleteClick} />
       ))}
@@ -455,12 +468,11 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
   const [showComments, setShowComments] = useState(false);
   const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
   const avatarInitial = displayName.charAt(0).toUpperCase();
-
-  // Quantidade de comentários (se undefined, assume 0)
   const commentCount = request.commentCount || 0;
 
   return (
-    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group">
+    // h-fit faz com que o card tenha a altura do seu conteúdo, evitando esticamentos estranhos no grid
+    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group h-fit">
       {isAuthor && (
         <button onClick={() => onDeleteClick(request.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1">
           <X size={16} />
@@ -482,11 +494,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
       </div>
       <p className="text-slate-600 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
       <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-        
-        <button 
-          onClick={() => setShowComments(!showComments)}
-          className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors group"
-        >
+        <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors group">
           <MessageCircle size={16} />
           Comentários
           {commentCount > 0 && (
@@ -495,30 +503,10 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
             </span>
           )}
         </button>
-
-        {/* BOTÃO "EU ORO" ATUALIZADO */}
-        <button
-          onClick={() => onPray(request.id, isPraying)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${
-            isPraying 
-              ? 'bg-[#649fce] text-white border-[#649fce]' // Ativo: Azul com texto branco e ícone vermelho (no children)
-              : 'bg-transparent border-slate-300 text-slate-500 hover:border-red-200 hover:text-red-500' // Inativo: Discreto, vermelho no hover
-          } active:scale-95`}
-        >
-          {isPraying ? (
-            <>
-              Orando <Heart size={14} className="fill-red-500 text-red-500" /> 
-            </>
-          ) : (
-            <>
-              Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" />
-            </>
-          )}
-          <span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>
-             | {prayedBy.length}
-          </span>
+        <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${isPraying ? 'bg-[#649fce] text-white border-[#649fce]' : 'bg-transparent border-slate-300 text-slate-500 hover:border-red-200 hover:text-red-500'} active:scale-95`}>
+          {isPraying ? (<>Orando <Heart size={14} className="fill-red-500 text-red-500" /></>) : (<>Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" /></>)}
+          <span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>| {prayedBy.length}</span>
         </button>
-
       </div>
       {showComments && <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} />}
     </div>
@@ -546,9 +534,7 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
     e.preventDefault();
     if (!newComment.trim()) return;
     const db = getFirestore();
-    
     try {
-      // 1. Adicionar o comentário na sub-coleção
       const commentsRef = collection(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId, 'comments');
       await addDoc(commentsRef, {
         text: newComment,
@@ -556,13 +542,8 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
         authorId: currentUser.uid,
         createdAt: serverTimestamp()
       });
-
-      // 2. Atualizar o contador no pedido principal
       const requestRef = doc(db, 'artifacts', 'mural-v1', 'public', 'data', 'prayer_requests', requestId);
-      await updateDoc(requestRef, {
-        commentCount: increment(1)
-      });
-
+      await updateDoc(requestRef, { commentCount: increment(1) });
       setNewComment('');
     } catch (err) { console.error(err); }
   };
