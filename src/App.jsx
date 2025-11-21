@@ -56,7 +56,6 @@ export default function PrayerApp() {
   const [activeWall, setActiveWall] = useState(null); 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
-  // Configuração Inicial
   useEffect(() => {
     const link = document.querySelector("link[rel~='icon']");
     if (!link) {
@@ -113,7 +112,6 @@ export default function PrayerApp() {
 
   // --- Lógica de Murais ---
 
-  // Estado para o Modal de Sair/Excluir Mural
   const [leaveModal, setLeaveModal] = useState({ isOpen: false });
 
   const handleCreateWall = async (title, password) => {
@@ -170,16 +168,12 @@ export default function PrayerApp() {
     }
   };
 
-  // Ação chamada pelo Modal Personalizado
   const confirmLeaveWall = async () => {
     if (!activeWall || !user) return;
-
     const isCreator = activeWall.createdBy === user.uid;
-    
     try {
       const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
       await updateDoc(userRef, { joinedWalls: arrayRemove(activeWall.id) });
-
       if (isCreator) {
           await deleteDoc(doc(db, 'artifacts', appId, 'prayer_walls', activeWall.id));
       } else {
@@ -187,9 +181,8 @@ export default function PrayerApp() {
             memberCount: increment(-1) 
           });
       }
-      
       setUserProfile(prev => ({ ...prev, joinedWalls: prev.joinedWalls.filter(id => id !== activeWall.id) }));
-      setLeaveModal({ isOpen: false }); // Fecha o modal
+      setLeaveModal({ isOpen: false });
       setActiveWall(null);
       setView('wall-list');
     } catch (error) { console.error(error); alert("Ocorreu um erro ao tentar sair."); }
@@ -231,7 +224,7 @@ export default function PrayerApp() {
         setView={setView} 
         activeWall={activeWall} 
         goBack={() => { setActiveWall(null); setView('wall-list'); }}
-        onLeaveClick={() => setLeaveModal({ isOpen: true })} // Abre o modal em vez de confirm()
+        onLeaveClick={() => setLeaveModal({ isOpen: true })}
       />
 
       <main className="flex-1 w-full max-w-md md:max-w-6xl mx-auto relative bg-slate-50 dark:bg-slate-900 md:px-6 transition-colors duration-300 overflow-y-auto">
@@ -260,46 +253,27 @@ export default function PrayerApp() {
         {view === 'settings' && <SettingsScreen userProfile={userProfile} onUpdateName={updateName} onUpdatePhoto={updatePhoto} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />}
       </main>
 
-      {/* MODAL DE SAÍDA/EXCLUSÃO DE MURAL (Global) */}
       {leaveModal.isOpen && activeWall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
             <div className="flex flex-col items-center text-center gap-4">
-              
-              {/* Ícone muda dependendo se é o dono */}
               <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 ${activeWall.createdBy === user.uid ? 'bg-red-100 text-red-600 dark:bg-red-900/40' : 'bg-orange-100 text-orange-600 dark:bg-orange-900/40'}`}>
                 {activeWall.createdBy === user.uid ? <AlertTriangle size={24} /> : <LogOut size={24} />}
               </div>
-              
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">
-                {activeWall.createdBy === user.uid ? 'Excluir Grupo?' : 'Sair do Grupo?'}
-              </h3>
-              
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">{activeWall.createdBy === user.uid ? 'Excluir Grupo?' : 'Sair do Grupo?'}</h3>
               <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
                 {activeWall.createdBy === user.uid 
                   ? "Você é o criador. Se sair, este mural e todos os pedidos serão excluídos permanentemente para todos." 
                   : `Deseja realmente sair do mural "${activeWall.title}"? Ele será removido da sua lista.`}
               </p>
-
               <div className="flex gap-3 w-full mt-2">
-                <button 
-                  onClick={() => setLeaveModal({ isOpen: false })}
-                  className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={confirmLeaveWall}
-                  className={`flex-1 py-3 px-4 text-white font-semibold rounded-xl transition-colors shadow-lg ${activeWall.createdBy === user.uid ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-200'}`}
-                >
-                  {activeWall.createdBy === user.uid ? 'Excluir' : 'Sair'}
-                </button>
+                <button onClick={() => setLeaveModal({ isOpen: false })} className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancelar</button>
+                <button onClick={confirmLeaveWall} className={`flex-1 py-3 px-4 text-white font-semibold rounded-xl transition-colors shadow-lg ${activeWall.createdBy === user.uid ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-200'}`}>{activeWall.createdBy === user.uid ? 'Excluir' : 'Sair'}</button>
               </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
@@ -309,7 +283,7 @@ export default function PrayerApp() {
 function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
   const getTitle = () => {
     if (activeWall) return activeWall.title;
-    if (view === 'wall-list') return 'Mural de Oração v. 3.2';
+    if (view === 'wall-list') return 'Mural de Oração v. 3.3';
     if (view === 'create-wall') return 'Criar Mural';
     if (view === 'join-wall') return 'Entrar em Mural';
     if (view === 'settings') return 'Configurações';
@@ -334,7 +308,8 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
           <img src="/icon.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
         )}
         
-        <div className="flex flex-col items-start justify-center truncate">
+        {/* CORREÇÃO AQUI: Mudado para items-center para centralizar o texto */}
+        <div className="flex flex-col items-center justify-center truncate">
           <h1 className={`font-bold tracking-wide truncate leading-tight ${activeWall ? 'text-lg' : 'text-xl'}`}>
             {getTitle()}
           </h1>
@@ -454,8 +429,110 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
   );
 }
 
-// --- MANTER OS OUTROS COMPONENTES (LoginScreen, WallListScreen, etc.) IGUAIS ---
-// (O código abaixo repete os componentes essenciais para garantir que o arquivo esteja completo e funcional)
+function ReadScreen({ requests, loading, onPray, onDeleteClick, currentUser, userProfile, wallId, appId, db, isWallAdmin }) {
+  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
+  if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Este mural ainda não tem pedidos. Clique no + para criar o primeiro.</div>;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 animate-in fade-in duration-500">
+      {requests.map((req) => (
+        <PrayerCard 
+          key={req.id} 
+          request={req} 
+          currentUser={currentUser} 
+          userProfile={userProfile} 
+          onPray={onPray} 
+          onDeleteClick={onDeleteClick} 
+          wallId={wallId} 
+          appId={appId} 
+          db={db}
+          isWallAdmin={isWallAdmin}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, wallId, appId, db, isWallAdmin }) {
+  const prayedBy = request.prayedBy || [];
+  const isPraying = prayedBy.includes(currentUser?.uid);
+  const isAuthor = request.authorId === currentUser?.uid;
+  const [showComments, setShowComments] = useState(false);
+  const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
+  const displayPhoto = request.isAnonymous ? null : request.authorPhoto;
+  const commentCount = request.commentCount || 0;
+
+  const canDelete = isAuthor || isWallAdmin;
+
+  return (
+    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all hover:shadow-md relative group h-fit">
+      {canDelete && (
+        <button onClick={() => onDeleteClick(request.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1"><X size={16} /></button>
+      )}
+      <div className="flex justify-between items-start mb-3 pr-6">
+        <div className="flex items-center gap-3">
+          <UserAvatar src={displayPhoto} name={displayName} size="md" className={isAuthor ? "ring-2 ring-blue-100 dark:ring-blue-900" : ""} />
+          <div>
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm">{displayName}</h3>
+            <p className="text-xs text-slate-400 flex items-center gap-1">
+               {request.createdAt ? new Date(request.createdAt.seconds * 1000).toLocaleDateString() : 'Agora'}
+               {isAuthor && <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 rounded text-[10px] font-bold tracking-wide">VOCÊ</span>}
+            </p>
+          </div>
+        </div>
+      </div>
+      <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
+      <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-700">
+        <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors group">
+          <MessageCircle size={16} /> Comentários {commentCount > 0 && <span className="bg-[#649fce] text-white px-1.5 py-0.5 rounded-md text-[10px] font-bold ml-1">{commentCount}</span>}
+        </button>
+        <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${isPraying ? 'bg-[#649fce] text-white border-[#649fce]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'} active:scale-95`}>
+          {isPraying ? (<>Orando <Heart size={14} className="fill-red-500 text-red-500" /></>) : (<>Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" /></>)}
+          <span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>| {prayedBy.length}</span>
+        </button>
+      </div>
+      {showComments && <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} wallId={wallId} appId={appId} db={db} />}
+    </div>
+  );
+}
+
+function CommentsSection({ requestId, currentUser, userProfile, wallId, appId, db }) {
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
+    const unsubscribe = onSnapshot(commentsRef, (snapshot) => {
+      const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+      setComments(loadedComments);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [requestId, wallId]);
+  const handleSendComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
+      await addDoc(commentsRef, { text: newComment, authorName: userProfile?.name || 'Anônimo', authorId: currentUser.uid, createdAt: serverTimestamp() });
+      const requestRef = doc(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId);
+      await updateDoc(requestRef, { commentCount: increment(1) });
+      setNewComment('');
+    } catch (err) { console.error(err); }
+  };
+  return (
+    <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 transition-colors"><div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">{loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}{!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}{comments.map(comment => (<div key={comment.id} className="flex flex-col bg-white dark:bg-slate-800 p-2 rounded shadow-sm"><span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mb-0.5">{comment.authorName}</span><span className="text-xs text-slate-700 dark:text-slate-300">{comment.text}</span></div>))}</div><form onSubmit={handleSendComment} className="flex gap-2"><input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-400" /><button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors"><Send size={14} /></button></form></div>
+  );
+}
+
+function SplashScreen() {
+  return (
+    <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
+      <div className="animate-fade-simple flex flex-col items-center"><img src="/icon.png" alt="Logo" className="w-40 h-40 object-contain mb-6" /></div>
+    </div>
+  );
+}
 
 function LoginScreen({ onLoginSuccess, appId, db, auth }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -620,100 +697,13 @@ function JoinWallScreen({ onSubmit, onCancel }) {
   );
 }
 
-function ReadScreen({ requests, loading, onPray, onDeleteClick, currentUser, userProfile, wallId, appId, db, isWallAdmin }) {
-  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
-  if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Este mural ainda não tem pedidos. Clique no + para criar o primeiro.</div>;
-
+function WriteScreen({ onSubmit, userProfile, onBack }) {
+  const [content, setContent] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false); 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSubmit = async (e) => { e.preventDefault(); if (!content.trim()) return; setIsSubmitting(true); await onSubmit(content, isAnonymous); setIsSubmitting(false); };
   return (
-    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 animate-in fade-in duration-500">
-      {requests.map((req) => (
-        <PrayerCard 
-          key={req.id} 
-          request={req} 
-          currentUser={currentUser} 
-          userProfile={userProfile} 
-          onPray={onPray} 
-          onDeleteClick={onDeleteClick} 
-          wallId={wallId} 
-          appId={appId} 
-          db={db}
-          isWallAdmin={isWallAdmin}
-        />
-      ))}
-    </div>
-  );
-}
-
-function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, wallId, appId, db, isWallAdmin }) {
-  const prayedBy = request.prayedBy || [];
-  const isPraying = prayedBy.includes(currentUser?.uid);
-  const isAuthor = request.authorId === currentUser?.uid;
-  const [showComments, setShowComments] = useState(false);
-  const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
-  const displayPhoto = request.isAnonymous ? null : request.authorPhoto;
-  const commentCount = request.commentCount || 0;
-
-  const canDelete = isAuthor || isWallAdmin;
-
-  return (
-    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all hover:shadow-md relative group h-fit">
-      {canDelete && (
-        <button onClick={() => onDeleteClick(request.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1"><X size={16} /></button>
-      )}
-      <div className="flex justify-between items-start mb-3 pr-6">
-        <div className="flex items-center gap-3">
-          <UserAvatar src={displayPhoto} name={displayName} size="md" className={isAuthor ? "ring-2 ring-blue-100 dark:ring-blue-900" : ""} />
-          <div>
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm">{displayName}</h3>
-            <p className="text-xs text-slate-400 flex items-center gap-1">
-               {request.createdAt ? new Date(request.createdAt.seconds * 1000).toLocaleDateString() : 'Agora'}
-               {isAuthor && <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 rounded text-[10px] font-bold tracking-wide">VOCÊ</span>}
-            </p>
-          </div>
-        </div>
-      </div>
-      <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
-      <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-700">
-        <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors group">
-          <MessageCircle size={16} /> Comentários {commentCount > 0 && <span className="bg-[#649fce] text-white px-1.5 py-0.5 rounded-md text-[10px] font-bold ml-1">{commentCount}</span>}
-        </button>
-        <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${isPraying ? 'bg-[#649fce] text-white border-[#649fce]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'} active:scale-95`}>
-          {isPraying ? (<>Orando <Heart size={14} className="fill-red-500 text-red-500" /></>) : (<>Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" /></>)}
-          <span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>| {prayedBy.length}</span>
-        </button>
-      </div>
-      {showComments && <CommentsSection requestId={request.id} currentUser={currentUser} userProfile={userProfile} wallId={wallId} appId={appId} db={db} />}
-    </div>
-  );
-}
-
-function CommentsSection({ requestId, currentUser, userProfile, wallId, appId, db }) {
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
-    const unsubscribe = onSnapshot(commentsRef, (snapshot) => {
-      const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-      setComments(loadedComments);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [requestId, wallId]);
-  const handleSendComment = async (e) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    try {
-      const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
-      await addDoc(commentsRef, { text: newComment, authorName: userProfile?.name || 'Anônimo', authorId: currentUser.uid, createdAt: serverTimestamp() });
-      const requestRef = doc(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId);
-      await updateDoc(requestRef, { commentCount: increment(1) });
-      setNewComment('');
-    } catch (err) { console.error(err); }
-  };
-  return (
-    <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 transition-colors"><div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">{loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}{!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}{comments.map(comment => (<div key={comment.id} className="flex flex-col bg-white dark:bg-slate-800 p-2 rounded shadow-sm"><span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mb-0.5">{comment.authorName}</span><span className="text-xs text-slate-700 dark:text-slate-300">{comment.text}</span></div>))}</div><form onSubmit={handleSendComment} className="flex gap-2"><input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-400" /><button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors"><Send size={14} /></button></form></div>
+    <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto"><div className="flex items-center mb-6"><button onClick={onBack} className="p-2 -ml-2 mr-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><ChevronLeft size={24} /></button><h2 className="text-xl font-bold text-slate-800 dark:text-white">Novo Pedido</h2></div><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm transition-colors"><div className="flex items-center gap-3"><div className={`p-1 rounded-full ${isAnonymous ? 'bg-slate-100 dark:bg-slate-700' : 'bg-blue-100 dark:bg-slate-700'}`}>{isAnonymous ? (<User size={20} className="text-slate-500 dark:text-slate-400 m-2" />) : (<UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="md" />)}</div><div className="flex flex-col"><span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Publicar como</span><span className="font-medium text-slate-700 dark:text-white">{isAnonymous ? 'Anônimo' : (userProfile?.name || 'Você')}</span></div></div><button type="button" onClick={() => setIsAnonymous(!isAnonymous)} className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300 dark:bg-slate-600' : 'bg-blue-500'}`}><div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-sm transition-transform duration-300 ${isAnonymous ? 'translate-x-0' : 'translate-x-5'}`}></div></button></div><div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors"><label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2"><Sparkles size={16} /> Seu Pedido de Oração</label><textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700" /></div><button disabled={isSubmitting} type="submit" className="bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg shadow-blue-200 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button></form></div>
   );
 }
 
@@ -753,16 +743,6 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
     window.open(googleCalendarUrl, '_blank');
   };
   return (
-    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-blue-600" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full shadow-md hover:bg-blue-700 transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-blue-400 ring-2 ring-blue-100 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-blue-600 text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 3.2.0 Stable</div></div>
-  );
-}
-
-function SplashScreen() {
-  return (
-    <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
-      <div className="animate-fade-simple flex flex-col items-center">
-        <img src="/icon.png" alt="Logo" className="w-40 h-40 object-contain mb-6" />
-      </div>
-    </div>
+    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-blue-600" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full shadow-md hover:bg-blue-700 transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-blue-400 ring-2 ring-blue-100 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-blue-600 text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 2.3.0 Stable</div></div>
   );
 }
