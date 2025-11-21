@@ -30,7 +30,7 @@ import {
 import { 
   Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, Mail, Lock, 
   CheckCircle, LogOut, MessageCircle, X, AlertTriangle, Settings, Save, 
-  Calendar, Bell, Moon, Sun, Camera, Users, KeyRound, Search
+  Calendar, Bell, Moon, Sun, Camera, Users, KeyRound, Search, LogIn, ChevronLeft
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -42,7 +42,6 @@ const firebaseConfig = {
   messagingSenderId: "523164992096",
   appId: "1:523164992096:web:ae30c09139c92bb326f905"
 };
-
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -129,7 +128,7 @@ export default function PrayerApp() {
       setActiveWall({ id: wallRef.id, title: title.trim(), isOwner: true });
       setView('wall-detail');
     } catch (error) {
-      alert("Erro ao criar mural. Verifique se as Regras do Firebase foram atualizadas.");
+      alert("Erro ao criar mural. Verifique permissões.");
       console.error(error);
     }
   };
@@ -275,7 +274,7 @@ export default function PrayerApp() {
   );
 }
 
-// --- TELAS DO SISTEMA DE MURAIS ---
+// --- TELAS ---
 
 function WallListScreen({ userProfile, db, appId, onSelectWall, onCreateNew, onJoinExisting }) {
   const [myWalls, setMyWalls] = useState([]);
@@ -386,7 +385,6 @@ function CreateWallScreen({ onSubmit, onCancel }) {
             <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input required type="text" placeholder="Defina uma senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:text-white" />
           </div>
-          <p className="text-xs text-slate-400">Compartilhe esta senha apenas com quem deve entrar.</p>
         </div>
         <div className="flex gap-3 mt-4">
           <button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button>
@@ -505,18 +503,23 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, onLeaveWall }) {
         </div>
       </div>
 
-      <div className="flex p-4 gap-2 justify-center">
-        <button onClick={() => setMode('read')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-colors ${mode === 'read' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-transparent text-slate-400'}`}>Mural</button>
-        <button onClick={() => setMode('write')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-colors ${mode === 'write' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-transparent text-slate-400'}`}>Novo Pedido</button>
-      </div>
-
-      <div className="px-4">
+      <div className="px-4 pt-4">
         {mode === 'write' ? (
-          <WriteScreen onSubmit={handleCreate} userProfile={userProfile} />
+          <WriteScreen onSubmit={handleCreate} userProfile={userProfile} onBack={() => setMode('read')} />
         ) : (
           <ReadScreen requests={requests} loading={loading} currentUser={user} userProfile={userProfile} onPray={handlePray} onDeleteClick={(id) => setDeleteModal({ isOpen: true, requestId: id })} wallId={wall.id} appId={appId} db={db} />
         )}
       </div>
+
+      {/* BOTÃO FLUTUANTE (FAB) PARA NOVO PEDIDO */}
+      {mode === 'read' && (
+        <button 
+          onClick={() => setMode('write')}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-300 dark:shadow-blue-900 flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all z-30"
+        >
+          <Plus size={28} />
+        </button>
+      )}
 
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
@@ -535,7 +538,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, onLeaveWall }) {
 
 function ReadScreen({ requests, loading, onPray, onDeleteClick, currentUser, userProfile, wallId, appId, db }) {
   if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
-  if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Este mural ainda não tem pedidos.</div>;
+  if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Este mural ainda não tem pedidos. Clique no + para criar o primeiro.</div>;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 animate-in fade-in duration-500">
@@ -577,7 +580,8 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
       <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
       <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-700">
         <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors group">
-          <MessageCircle size={16} /> Comentários
+          <MessageCircle size={16} />
+          Comentários
           {commentCount > 0 && <span className="bg-[#649fce] text-white px-1.5 py-0.5 rounded-md text-[10px] font-bold ml-1">{commentCount}</span>}
         </button>
         <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${isPraying ? 'bg-[#649fce] text-white border-[#649fce]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'} active:scale-95`}>
@@ -718,20 +722,20 @@ function LoginScreen({ onLoginSuccess, appId, db, auth }) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 animate-in fade-in slide-in-from-bottom-8 duration-700 transition-colors duration-300">
-      <div className="w-full max-w-sm text-center mb-8">
+      <div className="w-full max-w-xs text-center mb-8">
         <img src="/icon.png" alt="Logo" className="w-24 h-24 object-contain mx-auto mb-6" />
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isRegister ? 'Criar Conta' : 'Bem-vindo'}</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Entre para conectar-se aos seus murais.</p>
       </div>
-      <form onSubmit={handleEmailLogin} className="w-full max-w-sm flex flex-col gap-4">
+      <form onSubmit={handleEmailLogin} className="w-full max-w-xs flex flex-col gap-4">
         {isRegister && <input type="text" required placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />}
         <input type="email" required placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />
         <input type="password" required placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />
         <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-70">{loading ? '...' : (isRegister ? 'Cadastrar' : 'Entrar')}</button>
       </form>
-      <div className="my-6 w-full max-w-sm flex items-center gap-4"><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div><span className="text-xs text-slate-400 font-bold uppercase">Ou</span><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div></div>
-      <button type="button" onClick={handleGoogleLogin} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 p-4 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-3">
-        <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      <div className="my-6 w-full max-w-xs flex items-center gap-4"><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div><span className="text-xs text-slate-400 font-bold uppercase">Ou</span><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div></div>
+      <button type="button" onClick={handleGoogleLogin} className="w-full max-w-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 p-4 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-3">
+        <svg className="w-5 h-5 min-w-[20px]" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
         Google
       </button>
       <button onClick={() => setIsRegister(!isRegister)} className="mt-8 text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 font-medium">{isRegister ? 'Já tem conta? Entrar' : 'Criar conta'}</button>
@@ -739,7 +743,6 @@ function LoginScreen({ onLoginSuccess, appId, db, auth }) {
   );
 }
 
-// Settings Screen (Reutilizada da v1.4 mas com props ajustadas)
 function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme }) {
   const [name, setName] = useState(userProfile?.name || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -820,8 +823,73 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
         </div>
       </div>
 
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+        <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
+          <Bell className="text-orange-500" size={20} />
+          <h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
+            Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.
+          </p>
+          <button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2">
+            <Calendar size={20} />
+            Adicionar à minha Agenda
+          </button>
+        </div>
+      </div>
+
       <button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button>
-      <div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 2.0 Multi-Wall</div>
+      <div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 2.1.0</div>
+    </div>
+  );
+}
+
+function WriteScreen({ onSubmit, userName, onBack }) {
+  const [content, setContent] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false); 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!content.trim()) return;
+    setIsSubmitting(true);
+    await onSubmit(content, isAnonymous);
+    setIsSubmitting(false);
+  };
+
+  return (
+    <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto">
+      <div className="flex items-center mb-6">
+        <button onClick={onBack} className="p-2 -ml-2 mr-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><ChevronLeft size={24} /></button>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Novo Pedido</h2>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm transition-colors">
+          <div className="flex items-center gap-3">
+             <div className={`p-2 rounded-full ${isAnonymous ? 'bg-slate-100 dark:bg-slate-700' : 'bg-blue-100 dark:bg-slate-700'}`}>
+               <User size={20} className={isAnonymous ? 'text-slate-500 dark:text-slate-400' : 'text-blue-600 dark:text-blue-400'} />
+             </div>
+             <div className="flex flex-col">
+               <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Publicar como</span>
+               <span className="font-medium text-slate-700 dark:text-white">{isAnonymous ? 'Anônimo' : (userName || 'Você')}</span>
+             </div>
+          </div>
+          <button type="button" onClick={() => setIsAnonymous(!isAnonymous)} className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300 dark:bg-slate-600' : 'bg-blue-500'}`}>
+            <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-sm transition-transform duration-300 ${isAnonymous ? 'translate-x-0' : 'translate-x-5'}`}></div>
+          </button>
+        </div>
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+          <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
+            <Sparkles size={16} /> Seu Pedido de Oração
+          </label>
+          <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700" />
+        </div>
+        <button disabled={isSubmitting} type="submit" className="bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg shadow-blue-200 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
+          {isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}
+        </button>
+      </form>
     </div>
   );
 }
