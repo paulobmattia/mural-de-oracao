@@ -7,7 +7,8 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut
+  signOut,
+  updateProfile
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -38,7 +39,11 @@ import {
   LogOut, 
   MessageCircle, 
   X,
-  AlertTriangle
+  AlertTriangle,
+  Settings,
+  Save,
+  Calendar,
+  Bell
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -77,6 +82,13 @@ export default function PrayerApp() {
             setUserProfile(docSnap.data());
             setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           } else {
+             // Se não tiver perfil, cria um básico baseado no Auth
+             const initialData = { 
+                name: currentUser.displayName || 'Visitante', 
+                email: currentUser.email 
+             };
+             await setDoc(profileRef, initialData);
+             setUserProfile(initialData);
              setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           }
         } catch (e) { console.error(e); }
@@ -142,8 +154,14 @@ export default function PrayerApp() {
     try {
       const profileRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'main');
       await setDoc(profileRef, data, { merge: true });
-      setUserProfile(data);
+      setUserProfile((prev) => ({ ...prev, ...data }));
     } catch (e) { console.error(e); }
+  };
+
+  const handleUpdateName = async (newName) => {
+    if (!user || !newName.trim()) return;
+    await saveUserProfile(user.uid, { name: newName.trim() });
+    alert("Nome atualizado com sucesso!");
   };
 
   const handleLogout = async () => {
@@ -207,9 +225,8 @@ export default function PrayerApp() {
         }
       `}</style>
 
-      <Header view={view} setView={setView} onLogout={handleLogout} />
+      <Header view={view} setView={setView} />
 
-      {/* AQUI ESTÁ A MÁGICA DA RESPONSIVIDADE: md:max-w-6xl permite que a tela cresça */}
       <main className="flex-1 w-full max-w-md md:max-w-6xl mx-auto relative bg-slate-50 md:px-6">
         {view === 'home' && (
           <HomeScreen onViewChange={setView} requestCount={requests.length} userName={userProfile?.name} />
@@ -225,6 +242,13 @@ export default function PrayerApp() {
             onPray={handlePrayInteraction}
             onDeleteClick={handleDeleteRequestClick}
             userProfile={userProfile}
+          />
+        )}
+        {view === 'settings' && (
+          <SettingsScreen 
+            userProfile={userProfile} 
+            onUpdateName={handleUpdateName} 
+            onLogout={handleLogout} 
           />
         )}
       </main>
@@ -338,7 +362,7 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
   );
 }
 
-function Header({ view, setView, onLogout }) {
+function Header({ view, setView }) {
   return (
     <div className="bg-[#649fce] shadow-sm p-4 sticky top-0 z-10 flex items-center justify-between text-white">
       <div className="w-10 flex justify-start">
@@ -350,15 +374,108 @@ function Header({ view, setView, onLogout }) {
       </div>
       <div className="flex-1 text-center">
         <h1 className="text-lg font-bold tracking-wide">
-          {view === 'home' ? 'Mural de Oração v. 1.0' : view === 'write' ? 'Novo Pedido' : view === 'read' ? 'Mural' : ''}
+          {view === 'home' ? 'Mural de Oração v. 1.0' : 
+           view === 'write' ? 'Novo Pedido' : 
+           view === 'read' ? 'Mural' : 
+           view === 'settings' ? 'Configurações' : ''}
         </h1>
       </div>
       <div className="w-10 flex justify-end">
         {view === 'home' && (
-          <button onClick={onLogout} className="p-2 text-white hover:bg-white/20 rounded-full transition-colors" title="Sair">
-            <LogOut size={20} />
+          <button onClick={() => setView('settings')} className="p-2 text-white hover:bg-white/20 rounded-full transition-colors" title="Configurações">
+            <Settings size={22} />
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// --- TELA DE CONFIGURAÇÕES ---
+function SettingsScreen({ userProfile, onUpdateName, onLogout }) {
+  const [name, setName] = useState(userProfile?.name || '');
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleSave = () => {
+    onUpdateName(name);
+    setIsEditing(false);
+  };
+
+  const handleAddToCalendar = () => {
+    // Cria um link para adicionar ao Google Agenda
+    const title = "Momento de Oração";
+    const details = "Tempo dedicado para acessar o Mural de Oração e interceder.";
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&recur=RRULE:FREQ=DAILY`;
+    
+    window.open(googleCalendarUrl, '_blank');
+  };
+
+  return (
+    <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto">
+      
+      {/* Seção de Perfil */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
+        <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-3">
+          <User className="text-blue-500" size={20} />
+          <h3 className="font-bold text-slate-700">Meu Perfil</h3>
+        </div>
+        <div className="p-6 flex flex-col gap-4">
+          <div>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label>
+            <div className="flex gap-2 mt-2">
+              <input 
+                type="text" 
+                value={name}
+                disabled={!isEditing}
+                onChange={(e) => setName(e.target.value)}
+                className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white border-blue-400 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+              />
+              {isEditing ? (
+                <button onClick={handleSave} className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-colors">
+                  <Save size={20} />
+                </button>
+              ) : (
+                <button onClick={() => setIsEditing(true)} className="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors">
+                  <Settings size={20} />
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 mt-2">Este é o nome que aparecerá nos seus pedidos de oração.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Seção de Notificações / Calendário */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
+        <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-3">
+          <Bell className="text-orange-500" size={20} />
+          <h3 className="font-bold text-slate-700">Lembrete Diário</h3>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+            Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.
+          </p>
+          <button 
+            onClick={handleAddToCalendar}
+            className="w-full bg-orange-50 text-orange-700 border border-orange-200 p-4 rounded-xl font-bold hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+          >
+            <Calendar size={20} />
+            Adicionar à minha Agenda
+          </button>
+        </div>
+      </div>
+
+      {/* Botão de Sair */}
+      <button 
+        onClick={onLogout}
+        className="w-full bg-white border border-red-100 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-sm"
+      >
+        <LogOut size={20} />
+        Sair da Conta
+      </button>
+
+      <div className="text-center mt-8 text-xs text-slate-300">
+        Versão 1.2.0
       </div>
     </div>
   );
@@ -452,7 +569,6 @@ function ReadScreen({ requests, loading, onPray, onDeleteClick, currentUser, use
   if (requests.length === 0) return <div className="text-center p-10 text-slate-400">Ainda não há pedidos.</div>;
 
   return (
-    // Grid Responsivo: 1 coluna mobile, 2 colunas tablet, 3 colunas desktop
     <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 animate-in fade-in duration-500">
       {requests.map((req) => (
         <PrayerCard key={req.id} request={req} currentUser={currentUser} userProfile={userProfile} onPray={onPray} onDeleteClick={onDeleteClick} />
@@ -471,7 +587,6 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
   const commentCount = request.commentCount || 0;
 
   return (
-    // h-fit faz com que o card tenha a altura do seu conteúdo, evitando esticamentos estranhos no grid
     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group h-fit">
       {isAuthor && (
         <button onClick={() => onDeleteClick(request.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1">
