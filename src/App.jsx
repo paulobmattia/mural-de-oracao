@@ -31,7 +31,7 @@ import {
   Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, Mail, Lock, 
   CheckCircle, LogOut, MessageCircle, X, AlertTriangle, Settings, Save, 
   Calendar, Bell, Moon, Sun, Camera, Users, KeyRound, Search, LogIn, ChevronLeft,
-  Filter, Tag, Award
+  Filter, Tag, Award, Check
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -43,6 +43,7 @@ const firebaseConfig = {
   messagingSenderId: "523164992096",
   appId: "1:523164992096:web:ae30c09139c92bb326f905"
 };
+
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -65,6 +66,26 @@ const DAILY_VERSES = [
 
 const CATEGORIES = ['Geral', 'Saúde', 'Família', 'Financeiro', 'Espiritual', 'Urgente'];
 
+// --- Componente de Notificação (Toast) ---
+function ToastNotification({ message, type, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  if (!message) return null;
+
+  const bgClass = type === 'error' ? 'bg-red-500' : 'bg-green-500';
+  const icon = type === 'error' ? <AlertTriangle size={18} /> : <Check size={18} />;
+
+  return (
+    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white animate-fade-in-down ${bgClass}`}>
+      {icon}
+      <span className="text-sm font-medium">{message}</span>
+    </div>
+  );
+}
+
 // --- Componente Principal ---
 export default function PrayerApp() {
   const [user, setUser] = useState(null);
@@ -72,6 +93,13 @@ export default function PrayerApp() {
   const [view, setView] = useState('splash'); 
   const [activeWall, setActiveWall] = useState(null); 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  
+  // Estado Global de Notificação
+  const [notification, setNotification] = useState({ message: '', type: 'success' });
+
+  const showToast = (msg, type = 'success') => {
+    setNotification({ message: msg, type });
+  };
 
   useEffect(() => {
     const link = document.querySelector("link[rel~='icon']");
@@ -146,8 +174,9 @@ export default function PrayerApp() {
       setUserProfile(prev => ({ ...prev, joinedWalls: [...(prev.joinedWalls || []), wallRef.id] }));
       setActiveWall({ id: wallRef.id, title: title.trim(), isOwner: true, createdBy: user.uid, memberCount: 1 });
       setView('wall-detail');
+      showToast('Mural criado com sucesso!');
     } catch (error) {
-      alert("Erro ao criar mural. Tente novamente.");
+      showToast("Erro ao criar mural. Tente novamente.", 'error');
     }
   };
 
@@ -161,7 +190,7 @@ export default function PrayerApp() {
       );
       const querySnapshot = await getDocs(q);
       if (querySnapshot.empty) {
-        alert("Mural não encontrado ou senha incorreta.");
+        showToast("Mural não encontrado ou senha incorreta.", 'error');
         return;
       }
       const wallDoc = querySnapshot.docs[0];
@@ -169,7 +198,7 @@ export default function PrayerApp() {
       const wallData = wallDoc.data();
 
       if (userProfile.joinedWalls?.includes(wallId)) {
-        alert("Você já participa deste mural!");
+        showToast("Você já participa deste mural!");
         setActiveWall({ id: wallId, ...wallData });
         setView('wall-detail');
         return;
@@ -180,8 +209,9 @@ export default function PrayerApp() {
       setUserProfile(prev => ({ ...prev, joinedWalls: [...(prev.joinedWalls || []), wallId] }));
       setActiveWall({ id: wallId, ...wallData, memberCount: (wallData.memberCount || 0) + 1 });
       setView('wall-detail');
+      showToast('Bem-vindo ao mural!');
     } catch (error) {
-      alert("Erro ao entrar no mural.");
+      showToast("Erro ao entrar no mural.", 'error');
     }
   };
 
@@ -202,7 +232,8 @@ export default function PrayerApp() {
       setLeaveModal({ isOpen: false });
       setActiveWall(null);
       setView('wall-list');
-    } catch (error) { console.error(error); alert("Ocorreu um erro ao tentar sair."); }
+      showToast(isCreator ? 'Mural excluído.' : 'Você saiu do mural.');
+    } catch (error) { console.error(error); showToast("Ocorreu um erro ao tentar sair.", 'error'); }
   };
 
   const handleLogout = async () => {
@@ -215,6 +246,7 @@ export default function PrayerApp() {
     const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
     await setDoc(userRef, { name: newName }, { merge: true });
     setUserProfile(prev => ({ ...prev, name: newName }));
+    showToast("Nome atualizado!");
   };
 
   const updatePhoto = async (newPhoto) => {
@@ -222,10 +254,11 @@ export default function PrayerApp() {
     const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
     await setDoc(userRef, { photoURL: newPhoto }, { merge: true });
     setUserProfile(prev => ({ ...prev, photoURL: newPhoto }));
+    showToast("Foto atualizada!");
   };
 
   if (view === 'splash') return <SplashScreen />;
-  if (view === 'login') return <LoginScreen onLoginSuccess={() => setView('wall-list')} appId={appId} db={db} auth={auth} />;
+  if (view === 'login') return <LoginScreen onLoginSuccess={() => setView('wall-list')} appId={appId} db={db} auth={auth} showToast={showToast} />;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 overflow-hidden relative flex flex-col transition-colors duration-300" style={{ fontFamily: "'Roboto', sans-serif" }}>
@@ -234,9 +267,19 @@ export default function PrayerApp() {
         body { font-family: 'Roboto', sans-serif; }
         @keyframes fadeInSimple { 0% { opacity: 0; } 100% { opacity: 1; } }
         .animate-fade-simple { animation: fadeInSimple 2.5s ease-out forwards; }
+        @keyframes fadeInDown { 0% { opacity: 0; transform: translate(-50%, -20px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
+        .animate-fade-in-down { animation: fadeInDown 0.3s ease-out forwards; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
+
+      {notification.message && (
+        <ToastNotification 
+          message={notification.message} 
+          type={notification.type} 
+          onClose={() => setNotification({ ...notification, message: '' })} 
+        />
+      )}
 
       <Header 
         view={view} 
@@ -267,11 +310,13 @@ export default function PrayerApp() {
             userProfile={userProfile}
             db={db}
             appId={appId}
+            showToast={showToast}
           />
         )}
         {view === 'settings' && <SettingsScreen userProfile={userProfile} onUpdateName={updateName} onUpdatePhoto={updatePhoto} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />}
       </main>
 
+      {/* Modal de Saída Global */}
       {leaveModal.isOpen && activeWall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
@@ -302,7 +347,7 @@ export default function PrayerApp() {
 function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
   const getTitle = () => {
     if (activeWall) return activeWall.title;
-    if (view === 'wall-list') return 'Mural de Oração v. 4.0';
+    if (view === 'wall-list') return 'Mural de Oração';
     if (view === 'create-wall') return 'Criar Mural';
     if (view === 'join-wall') return 'Entrar em Mural';
     if (view === 'settings') return 'Configurações';
@@ -323,6 +368,7 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
         {!activeWall && (
           <img src="/icon.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
         )}
+        
         <div className="flex flex-col items-center justify-center truncate w-full">
           <h1 className={`font-bold tracking-wide truncate leading-tight text-center w-full ${activeWall ? 'text-lg' : 'text-xl'}`}>
             {getTitle()}
@@ -346,11 +392,12 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
   );
 }
 
-function WallDetailScreen({ wall, user, userProfile, db, appId }) {
+function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
   const [mode, setMode] = useState('read'); 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, requestId: null });
+  const [markAnsweredModal, setMarkAnsweredModal] = useState({ isOpen: false, requestId: null });
   const [filterTag, setFilterTag] = useState(null);
   const [showTestimonials, setShowTestimonials] = useState(false);
 
@@ -389,7 +436,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
         isAnswered: false
       });
       setMode('read');
-    } catch (error) { alert("Erro ao enviar."); }
+      showToast('Pedido enviado!');
+    } catch (error) { showToast("Erro ao enviar.", 'error'); }
   };
 
   const handlePray = async (requestId, isPraying) => {
@@ -397,16 +445,19 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
     await updateDoc(docRef, { prayedBy: isPraying ? arrayRemove(user.uid) : arrayUnion(user.uid) });
   };
 
-  const handleMarkAnswered = async (requestId) => {
-    if(!confirm("Deseja marcar este pedido como Graça Alcançada? Ele será movido para a aba de Testemunhos.")) return;
-    const docRef = doc(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests', requestId);
+  const confirmMarkAnswered = async () => {
+    if (!markAnsweredModal.requestId) return;
+    const docRef = doc(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests', markAnsweredModal.requestId);
     await updateDoc(docRef, { isAnswered: true });
+    setMarkAnsweredModal({ isOpen: false, requestId: null });
+    showToast('Graça alcançada registrada! 🎉');
   };
 
   const confirmDelete = async () => {
     if (!deleteModal.requestId) return;
     await deleteDoc(doc(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests', deleteModal.requestId));
     setDeleteModal({ isOpen: false, requestId: null });
+    showToast('Pedido excluído.');
   };
 
   const filteredRequests = requests.filter(req => {
@@ -418,16 +469,27 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
 
   return (
     <div className="pb-20 pt-4 relative h-full">
-      <div className="px-4 mb-4 flex flex-col gap-2">
-        <div className="flex gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm">
-          <button onClick={() => setShowTestimonials(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!showTestimonials ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}>Mural</button>
-          <button onClick={() => setShowTestimonials(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${showTestimonials ? 'bg-yellow-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}><Award size={16} /> Testemunhos</button>
+      
+      {/* Barra de Filtros e Abas */}
+      <div className="mb-4 flex flex-col gap-2">
+        <div className="px-4">
+          <div className="flex gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm">
+            <button onClick={() => setShowTestimonials(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!showTestimonials ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}>Mural</button>
+            <button onClick={() => setShowTestimonials(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${showTestimonials ? 'bg-yellow-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}><Award size={16} /> Testemunhos</button>
+          </div>
         </div>
         
+        {/* CORREÇÃO: Tags com scroll horizontal total sem cortes */}
         {!showTestimonials && (
-          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-4 w-full">
              {CATEGORIES.map(tag => (
-               <button key={tag} onClick={() => setFilterTag(filterTag === tag ? null : tag)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${filterTag === tag ? 'bg-blue-100 text-blue-600 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>{tag}</button>
+               <button 
+                key={tag} 
+                onClick={() => setFilterTag(filterTag === tag ? null : tag)} 
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border flex-shrink-0 ${filterTag === tag ? 'bg-blue-100 text-blue-600 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}
+               >
+                 {tag}
+               </button>
              ))}
           </div>
         )}
@@ -444,7 +506,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
             userProfile={userProfile} 
             onPray={handlePray} 
             onDeleteClick={(id) => setDeleteModal({ isOpen: true, requestId: id })} 
-            onMarkAnswered={handleMarkAnswered}
+            onMarkAnswered={(id) => setMarkAnsweredModal({ isOpen: true, requestId: id })}
             wallId={wall.id} 
             appId={appId} 
             db={db}
@@ -458,6 +520,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
         <button onClick={() => setMode('write')} className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-300 dark:shadow-blue-900 flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all z-30"><Plus size={28} /></button>
       )}
 
+      {/* Modal Exclusão de Pedido */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl">
@@ -465,6 +528,25 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
             <div className="flex gap-3 mt-4">
               <button onClick={() => setDeleteModal({ isOpen: false, requestId: null })} className="flex-1 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Cancelar</button>
               <button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg">Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Marcar como Respondido */}
+      {markAnsweredModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl border-2 border-yellow-100 dark:border-yellow-900/50">
+            <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center text-yellow-600 mx-auto mb-4">
+                <Award size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Graça Alcançada?</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                Deseja marcar este pedido como respondido? Ele será movido para a aba de <b>Testemunhos</b> para edificar o grupo.
+            </p>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setMarkAnsweredModal({ isOpen: false, requestId: null })} className="flex-1 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Cancelar</button>
+              <button onClick={confirmMarkAnswered} className="flex-1 py-2 bg-yellow-500 text-white font-bold rounded-lg shadow-lg shadow-yellow-200 dark:shadow-none">Sim, Amém!</button>
             </div>
           </div>
         </div>
@@ -577,7 +659,7 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
             {CATEGORIES.map(cat => (
-                <button type="button" key={cat} onClick={() => setCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-bold transition-all border ${category === cat ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>{cat}</button>
+                <button type="button" key={cat} onClick={() => setCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-bold transition-all border flex-shrink-0 ${category === cat ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>{cat}</button>
             ))}
         </div>
 
@@ -653,7 +735,7 @@ function WallListScreen({ userProfile, db, appId, onSelectWall, onCreateNew, onJ
 
 function SplashScreen() { return <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col items-center justify-center z-50 transition-colors duration-300"><div className="animate-fade-simple flex flex-col items-center"><img src="/icon.png" alt="Logo" className="w-40 h-40 object-contain mb-6" /></div></div>; }
 
-function LoginScreen({ onLoginSuccess, appId, db, auth }) {
+function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState(''); 
   const [email, setEmail] = useState('');
@@ -679,7 +761,7 @@ function LoginScreen({ onLoginSuccess, appId, db, auth }) {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
       onLoginSuccess();
-    } catch (error) { alert("Erro: " + error.code); setLoading(false); }
+    } catch (error) { showToast("Erro: " + error.code, 'error'); setLoading(false); }
   };
 
   const handleGoogleLogin = async () => {
@@ -687,7 +769,7 @@ function LoginScreen({ onLoginSuccess, appId, db, auth }) {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       await saveUserProfile(result.user.uid, { name: result.user.displayName, email: result.user.email, photoURL: result.user.photoURL });
       onLoginSuccess();
-    } catch (error) { console.error(error); }
+    } catch (error) { console.error(error); showToast("Erro ao conectar Google", 'error'); }
   };
 
   return (
@@ -710,23 +792,33 @@ function LoginScreen({ onLoginSuccess, appId, db, auth }) {
   );
 }
 
-function CreateWallScreen({ onSubmit, onCancel }) {
-  const [title, setTitle] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); await onSubmit(title, password); setLoading(false); };
+function CommentsSection({ requestId, currentUser, userProfile, wallId, appId, db }) {
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
+    const unsubscribe = onSnapshot(commentsRef, (snapshot) => {
+      const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+      setComments(loadedComments);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [requestId, wallId]);
+  const handleSendComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
+      await addDoc(commentsRef, { text: newComment, authorName: userProfile?.name || 'Anônimo', authorId: currentUser.uid, createdAt: serverTimestamp() });
+      const requestRef = doc(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId);
+      await updateDoc(requestRef, { commentCount: increment(1) });
+      setNewComment('');
+    } catch (err) { console.error(err); }
+  };
   return (
-    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center">Novo Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Crie um espaço seguro para seu grupo.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome do Mural</label><div className="relative"><Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Ex: Família Silva..." value={title} onChange={e => setTitle(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha de Acesso</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Defina uma senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:text-white" /></div><p className="text-xs text-slate-400">Compartilhe esta senha apenas com quem deve entrar.</p></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 dark:shadow-none">{loading ? 'Criando...' : 'Criar Mural'}</button></div></form></div>
-  );
-}
-
-function JoinWallScreen({ onSubmit, onCancel }) {
-  const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); await onSubmit(name, password); setLoading(false); };
-  return (
-    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center">Entrar em Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Digite os dados fornecidos pelo criador.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome Exato do Mural</label><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite o nome exato..." value={name} onChange={e => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha do Mural</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite a senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-purple-600 text-white p-4 rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200 dark:shadow-none">{loading ? 'Buscando...' : 'Entrar'}</button></div></form></div>
+    <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 transition-colors"><div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">{loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}{!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}{comments.map(comment => (<div key={comment.id} className="flex flex-col bg-white dark:bg-slate-800 p-2 rounded shadow-sm"><span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mb-0.5">{comment.authorName}</span><span className="text-xs text-slate-700 dark:text-slate-300">{comment.text}</span></div>))}</div><form onSubmit={handleSendComment} className="flex gap-2"><input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-400" /><button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors"><Send size={14} /></button></form></div>
   );
 }
 
@@ -766,6 +858,6 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
     window.open(googleCalendarUrl, '_blank');
   };
   return (
-    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-blue-600" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full shadow-md hover:bg-blue-700 transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-blue-400 ring-2 ring-blue-100 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-blue-600 text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 2.3.0 Stable</div></div>
+    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-blue-600" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full shadow-md hover:bg-blue-700 transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-blue-400 ring-2 ring-blue-100 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-blue-600 text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 5.0 Polished</div></div>
   );
 }
