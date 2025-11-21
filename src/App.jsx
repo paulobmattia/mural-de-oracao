@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -44,7 +44,8 @@ import {
   Calendar,
   Bell,
   Moon,
-  Sun
+  Sun,
+  Camera
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -71,24 +72,9 @@ export default function PrayerApp() {
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, requestId: null });
   
-  // Estado do Tema (Lógica Inteligente)
-  const [theme, setTheme] = useState(() => {
-    // 1. Tenta pegar do localStorage (memória do navegador)
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) return savedTheme;
-    
-    // 2. Se não tiver salvo, verifica a preferência do sistema
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    
-    // 3. Padrão final
-    return 'light';
-  });
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
-  // Efeito para aplicar o Tema e Favicon
   useEffect(() => {
-    // Favicon
     const link = document.querySelector("link[rel~='icon']");
     if (!link) {
       const newLink = document.createElement('link');
@@ -99,15 +85,11 @@ export default function PrayerApp() {
       link.href = '/icon.png';
     }
 
-    // Aplicar Classe Dark Mode
-    const root = window.document.documentElement;
     if (theme === 'dark') {
-      root.classList.add('dark');
+      document.documentElement.classList.add('dark');
     } else {
-      root.classList.remove('dark');
+      document.documentElement.classList.remove('dark');
     }
-    
-    // Salvar escolha
     localStorage.setItem('theme', theme);
   }, [theme]);
 
@@ -127,9 +109,11 @@ export default function PrayerApp() {
             setUserProfile(docSnap.data());
             setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           } else {
+             // Pega foto do Google se existir
              const initialData = { 
                 name: currentUser.displayName || 'Visitante', 
-                email: currentUser.email 
+                email: currentUser.email,
+                photoURL: currentUser.photoURL || null 
              };
              await setDoc(profileRef, initialData);
              setUserProfile(initialData);
@@ -144,36 +128,28 @@ export default function PrayerApp() {
     return () => unsubscribe();
   }, [view]);
 
-  // Listener de Pedidos com Ordenação
+  // Listener de Pedidos
   useEffect(() => {
     if (!user) return;
     const requestsRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
-    
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
       loadedRequests.sort((a, b) => {
         const userId = user.uid;
         const aPrayed = a.prayedBy?.includes(userId) || false;
         const bPrayed = b.prayedBy?.includes(userId) || false;
-
-        // Prioridade para pedidos que eu oro
         if (aPrayed && !bPrayed) return -1;
         if (!aPrayed && bPrayed) return 1;
-
-        // Depois por data
         const dateA = a.createdAt?.seconds || 0;
         const dateB = b.createdAt?.seconds || 0;
         return dateB - dateA;
       });
-
       setRequests(loadedRequests);
       setLoading(false);
     }, (error) => { console.error(error); setLoading(false); });
     return () => unsubscribe();
   }, [user]);
 
-  // Timer Splash
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!user) setView('login');
@@ -203,9 +179,11 @@ export default function PrayerApp() {
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
+      // Salva também a URL da foto do Google
       await saveUserProfile(result.user.uid, {
         name: result.user.displayName,
-        email: result.user.email
+        email: result.user.email,
+        photoURL: result.user.photoURL
       });
     } catch (error) { console.error("Erro Google:", error); }
   };
@@ -218,10 +196,14 @@ export default function PrayerApp() {
     } catch (e) { console.error(e); }
   };
 
-  const handleUpdateName = async (newName) => {
-    if (!user || !newName.trim()) return;
-    await saveUserProfile(user.uid, { name: newName.trim() });
-    alert("Nome atualizado com sucesso!");
+  const handleUpdateProfile = async (newName, newPhotoBase64) => {
+    if (!user) return;
+    const updateData = {};
+    if (newName) updateData.name = newName.trim();
+    if (newPhotoBase64) updateData.photoURL = newPhotoBase64;
+    
+    await saveUserProfile(user.uid, updateData);
+    alert("Perfil atualizado com sucesso!");
   };
 
   const handleLogout = async () => {
@@ -235,6 +217,7 @@ export default function PrayerApp() {
       const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
       await addDoc(collectionRef, {
         authorName: userProfile?.name || 'Desconhecido',
+        authorPhoto: userProfile?.photoURL || null, // Salva a foto atual no pedido
         authorId: user.uid,
         isAnonymous: isAnonymous,
         content: content,
@@ -276,23 +259,18 @@ export default function PrayerApp() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', sans-serif; }
-        @keyframes fadeInSimple {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-        .animate-fade-simple {
-          animation: fadeInSimple 2.5s ease-out forwards;
-        }
+        @keyframes fadeInSimple { 0% { opacity: 0; } 100% { opacity: 1; } }
+        .animate-fade-simple { animation: fadeInSimple 2.5s ease-out forwards; }
       `}</style>
 
       <Header view={view} setView={setView} />
 
       <main className="flex-1 w-full max-w-md md:max-w-6xl mx-auto relative bg-slate-50 dark:bg-slate-900 md:px-6 transition-colors duration-300">
         {view === 'home' && (
-          <HomeScreen onViewChange={setView} requestCount={requests.length} userName={userProfile?.name} />
+          <HomeScreen onViewChange={setView} requestCount={requests.length} userProfile={userProfile} />
         )}
         {view === 'write' && (
-          <WriteScreen onSubmit={handleCreateRequest} userName={userProfile?.name} />
+          <WriteScreen onSubmit={handleCreateRequest} userProfile={userProfile} />
         )}
         {view === 'read' && (
           <ReadScreen 
@@ -307,7 +285,7 @@ export default function PrayerApp() {
         {view === 'settings' && (
           <SettingsScreen 
             userProfile={userProfile} 
-            onUpdateName={handleUpdateName} 
+            onUpdateProfile={handleUpdateProfile} 
             onLogout={handleLogout}
             theme={theme}
             toggleTheme={toggleTheme}
@@ -315,7 +293,6 @@ export default function PrayerApp() {
         )}
       </main>
 
-      {/* MODAL EXCLUSÃO */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200">
@@ -324,9 +301,7 @@ export default function PrayerApp() {
                 <AlertTriangle size={24} />
               </div>
               <h3 className="text-xl font-bold text-slate-800 dark:text-white">ATENÇÃO!</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-                Tem certeza que deseja excluir este pedido de oração?
-              </p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">Tem certeza que deseja excluir este pedido de oração?</p>
               <div className="flex gap-3 w-full mt-2">
                 <button onClick={() => setDeleteModal({ isOpen: false, requestId: null })} className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancelar</button>
                 <button onClick={confirmDelete} className="flex-1 py-3 px-4 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Excluir</button>
@@ -340,6 +315,26 @@ export default function PrayerApp() {
 }
 
 // --- Componentes Visuais ---
+
+// Componente Auxiliar para Avatar
+function UserAvatar({ src, name, size = "md", className = "" }) {
+  const sizeClasses = {
+    sm: "w-8 h-8 text-xs",
+    md: "w-10 h-10 text-sm",
+    lg: "w-16 h-16 text-xl",
+    xl: "w-24 h-24 text-3xl"
+  };
+
+  if (src) {
+    return <img src={src} alt={name} className={`${sizeClasses[size]} rounded-full object-cover border border-slate-200 dark:border-slate-600 ${className}`} />;
+  }
+
+  return (
+    <div className={`${sizeClasses[size]} rounded-full flex items-center justify-center font-bold shadow-sm bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 ${className}`}>
+      {name ? name.charAt(0).toUpperCase() : <User size={size === 'sm' ? 14 : 20} />}
+    </div>
+  );
+}
 
 function SplashScreen() {
   return (
@@ -406,12 +401,7 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
         </div>
 
         <button type="button" onClick={onGoogleLogin} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 p-4 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-3">
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
+          <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
           Google
         </button>
         <div className="mt-8 text-center">
@@ -454,13 +444,38 @@ function Header({ view, setView }) {
 }
 
 // --- TELA DE CONFIGURAÇÕES ---
-function SettingsScreen({ userProfile, onUpdateName, onLogout, theme, toggleTheme }) {
+function SettingsScreen({ userProfile, onUpdateProfile, onLogout, theme, toggleTheme }) {
   const [name, setName] = useState(userProfile?.name || '');
   const [isEditing, setIsEditing] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleSave = () => {
-    onUpdateName(name);
+    onUpdateProfile(name);
     setIsEditing(false);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        // Cria uma imagem para redimensionar
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 200; // Redimensiona para 200px (thumbnail leve)
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const base64String = canvas.toDataURL('image/jpeg', 0.7); // Compressão JPEG 70%
+          onUpdateProfile(null, base64String); // Salva a imagem comprimida
+        };
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddToCalendar = () => {
@@ -481,10 +496,7 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout, theme, toggleThem
         </div>
         <div className="p-6 flex items-center justify-between">
           <span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span>
-          <button 
-            onClick={toggleTheme} 
-            className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}
-          >
+          <button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}>
             <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>
               {theme === 'dark' ? <Moon size={14} className="text-blue-600" /> : <Sun size={14} className="text-yellow-500" />}
             </div>
@@ -498,7 +510,32 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout, theme, toggleThem
           <User className="text-blue-500" size={20} />
           <h3 className="font-bold text-slate-700 dark:text-white">Meu Perfil</h3>
         </div>
-        <div className="p-6 flex flex-col gap-4">
+        <div className="p-6 flex flex-col gap-6">
+          
+          {/* Foto de Perfil */}
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" />
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full shadow-md hover:bg-blue-700 transition-colors"
+              >
+                <Camera size={14} />
+              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept="image/*" 
+                className="hidden" 
+              />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p>
+              <p className="text-xs text-slate-400">Toque na câmera para alterar.</p>
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label>
             <div className="flex gap-2 mt-2">
@@ -519,7 +556,6 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout, theme, toggleThem
                 </button>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-2">Este é o nome que aparecerá nos seus pedidos de oração.</p>
           </div>
         </div>
       </div>
@@ -534,56 +570,47 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout, theme, toggleThem
           <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
             Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.
           </p>
-          <button 
-            onClick={handleAddToCalendar}
-            className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"
-          >
+          <button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2">
             <Calendar size={20} />
             Adicionar à minha Agenda
           </button>
         </div>
       </div>
 
-      <button 
-        onClick={onLogout}
-        className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"
-      >
+      <button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm">
         <LogOut size={20} />
         Sair da Conta
       </button>
 
       <div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">
-        Versão 1.3.0
+        Versão 1.4.0
       </div>
     </div>
   );
 }
 
-function HomeScreen({ onViewChange, requestCount, userName }) {
+function HomeScreen({ onViewChange, requestCount, userProfile }) {
   return (
     <div className="p-6 flex flex-col gap-6 pb-20 animate-in fade-in pt-8 md:pt-16 max-w-4xl mx-auto">
-      <div className="text-center mb-4">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Olá, {userName || 'Visitante'}</h2>
+      <div className="text-center mb-4 flex flex-col items-center">
+        {/* Exibir Foto na Home */}
+        <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="xl" className="mb-4 shadow-lg border-4 border-white dark:border-slate-800" />
+        
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Olá, {userProfile?.name || 'Visitante'}</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm italic bg-blue-50 dark:bg-slate-800 inline-block px-4 py-1 rounded-full">
           "Orai uns pelos outros para serdes curados."
         </p>
       </div>
       
       <div className="flex flex-col md:flex-row gap-6 justify-center">
-        <button 
-          onClick={() => onViewChange('write')} 
-          className="group bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-blue-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
-        >
+        <button onClick={() => onViewChange('write')} className="group bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-blue-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm">
           <div className="bg-blue-100 dark:bg-slate-700 p-4 rounded-full text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
             <Plus size={32} />
           </div>
           <span className="text-lg font-bold text-slate-700 dark:text-white">Deixar um Pedido</span>
         </button>
 
-        <button 
-          onClick={() => onViewChange('read')} 
-          className="group bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-purple-100 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-500 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
-        >
+        <button onClick={() => onViewChange('read')} className="group bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-purple-100 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-500 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm">
           <div className="bg-purple-100 dark:bg-slate-700 p-4 rounded-full text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white transition-colors">
             <BookOpen size={32} />
           </div>
@@ -597,7 +624,7 @@ function HomeScreen({ onViewChange, requestCount, userName }) {
   );
 }
 
-function WriteScreen({ onSubmit, userName }) {
+function WriteScreen({ onSubmit, userProfile }) {
   const [content, setContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -615,12 +642,16 @@ function WriteScreen({ onSubmit, userName }) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm transition-colors">
           <div className="flex items-center gap-3">
-             <div className={`p-2 rounded-full ${isAnonymous ? 'bg-slate-100 dark:bg-slate-700' : 'bg-blue-100 dark:bg-slate-700'}`}>
-               <User size={20} className={isAnonymous ? 'text-slate-500 dark:text-slate-400' : 'text-blue-600 dark:text-blue-400'} />
+             <div className={`p-1 rounded-full ${isAnonymous ? 'bg-slate-100 dark:bg-slate-700' : 'bg-blue-100 dark:bg-slate-700'}`}>
+               {isAnonymous ? (
+                 <User size={20} className="text-slate-500 dark:text-slate-400 m-2" />
+               ) : (
+                 <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="md" />
+               )}
              </div>
              <div className="flex flex-col">
                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Publicar como</span>
-               <span className="font-medium text-slate-700 dark:text-white">{isAnonymous ? 'Anônimo' : (userName || 'Você')}</span>
+               <span className="font-medium text-slate-700 dark:text-white">{isAnonymous ? 'Anônimo' : (userProfile?.name || 'Você')}</span>
              </div>
           </div>
           <button type="button" onClick={() => setIsAnonymous(!isAnonymous)} className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300 dark:bg-slate-600' : 'bg-blue-500'}`}>
@@ -660,7 +691,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
   const isAuthor = request.authorId === currentUser?.uid;
   const [showComments, setShowComments] = useState(false);
   const displayName = request.isAnonymous ? "Anônimo" : request.authorName;
-  const avatarInitial = displayName.charAt(0).toUpperCase();
+  const displayPhoto = request.isAnonymous ? null : request.authorPhoto;
   const commentCount = request.commentCount || 0;
 
   return (
@@ -672,9 +703,8 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
       )}
       <div className="flex justify-between items-start mb-3 pr-6">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isAuthor ? 'bg-blue-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'}`}>
-            {avatarInitial}
-          </div>
+          {/* Exibe foto ou inicial */}
+          <UserAvatar src={displayPhoto} name={displayName} size="md" className={isAuthor ? "ring-2 ring-blue-100 dark:ring-blue-900" : ""} />
           <div>
             <h3 className="font-bold text-slate-800 dark:text-white text-sm">{displayName}</h3>
             <p className="text-xs text-slate-400 flex items-center gap-1">
@@ -731,6 +761,7 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
       await addDoc(commentsRef, {
         text: newComment,
         authorName: userProfile?.name || 'Anônimo',
+        // Não salvamos a foto aqui por simplicidade, mas poderia ser adicionada
         authorId: currentUser.uid,
         createdAt: serverTimestamp()
       });
