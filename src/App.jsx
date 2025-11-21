@@ -71,12 +71,24 @@ export default function PrayerApp() {
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, requestId: null });
   
-  // Estado do Tema (Dark Mode)
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  // Estado do Tema (Lógica Inteligente)
+  const [theme, setTheme] = useState(() => {
+    // 1. Tenta pegar do localStorage (memória do navegador)
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) return savedTheme;
+    
+    // 2. Se não tiver salvo, verifica a preferência do sistema
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    
+    // 3. Padrão final
+    return 'light';
+  });
 
-  // 1. Efeito para Favicon e Tema
+  // Efeito para aplicar o Tema e Favicon
   useEffect(() => {
-    // Atualizar Favicon
+    // Favicon
     const link = document.querySelector("link[rel~='icon']");
     if (!link) {
       const newLink = document.createElement('link');
@@ -87,12 +99,15 @@ export default function PrayerApp() {
       link.href = '/icon.png';
     }
 
-    // Atualizar Classe Dark Mode
+    // Aplicar Classe Dark Mode
+    const root = window.document.documentElement;
     if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
+      root.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      root.classList.remove('dark');
     }
+    
+    // Salvar escolha
     localStorage.setItem('theme', theme);
   }, [theme]);
 
@@ -100,7 +115,7 @@ export default function PrayerApp() {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  // 2. Monitorar Autenticação
+  // Monitorar Autenticação
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -129,7 +144,7 @@ export default function PrayerApp() {
     return () => unsubscribe();
   }, [view]);
 
-  // 3. Listener de Pedidos com ORDENAÇÃO INTELIGENTE
+  // Listener de Pedidos com Ordenação
   useEffect(() => {
     if (!user) return;
     const requestsRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
@@ -137,17 +152,16 @@ export default function PrayerApp() {
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Lógica de Ordenação
       loadedRequests.sort((a, b) => {
         const userId = user.uid;
         const aPrayed = a.prayedBy?.includes(userId) || false;
         const bPrayed = b.prayedBy?.includes(userId) || false;
 
-        // 1º Critério: Se eu oro, aparece primeiro
+        // Prioridade para pedidos que eu oro
         if (aPrayed && !bPrayed) return -1;
         if (!aPrayed && bPrayed) return 1;
 
-        // 2º Critério: Data (mais recentes primeiro)
+        // Depois por data
         const dateA = a.createdAt?.seconds || 0;
         const dateB = b.createdAt?.seconds || 0;
         return dateB - dateA;
@@ -159,7 +173,7 @@ export default function PrayerApp() {
     return () => unsubscribe();
   }, [user]);
 
-  // 4. Timer Splash
+  // Timer Splash
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!user) setView('login');
