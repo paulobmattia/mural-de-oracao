@@ -311,7 +311,6 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
 
   return (
     <div className="bg-[#649fce] shadow-sm p-4 sticky top-0 z-20 flex items-center justify-between text-white h-16">
-      {/* Esquerda */}
       <div className="w-12 flex justify-start">
         {activeWall ? (
           <button onClick={goBack} className="p-2 -ml-2 text-white hover:bg-white/20 rounded-full transition-colors"><ArrowLeft size={24} /></button>
@@ -320,12 +319,10 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
         ) : null}
       </div>
 
-      {/* CENTRO */}
       <div className="flex-1 flex justify-center items-center gap-2 overflow-hidden">
         {!activeWall && (
           <img src="/icon.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
         )}
-        
         <div className="flex flex-col items-center justify-center truncate w-full">
           <h1 className={`font-bold tracking-wide truncate leading-tight text-center w-full ${activeWall ? 'text-lg' : 'text-xl'}`}>
             {getTitle()}
@@ -338,7 +335,6 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
         </div>
       </div>
 
-      {/* Direita */}
       <div className="w-12 flex justify-end">
         {activeWall ? (
           <button onClick={onLeaveClick} className="p-2 text-white/90 hover:text-red-200 hover:bg-white/20 rounded-full transition-colors" title="Sair do Grupo"><LogOut size={20} /></button>
@@ -415,7 +411,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId }) {
 
   const filteredRequests = requests.filter(req => {
     if (showTestimonials) return req.isAnswered;
-    if (req.isAnswered) return false; // Oculta respondidos do mural principal
+    if (req.isAnswered) return false; 
     if (filterTag && req.category !== filterTag) return false;
     return true;
   });
@@ -579,7 +575,6 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* Seleção de Categoria */}
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
             {CATEGORIES.map(cat => (
                 <button type="button" key={cat} onClick={() => setCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-bold transition-all border ${category === cat ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>{cat}</button>
@@ -715,32 +710,62 @@ function LoginScreen({ onLoginSuccess, appId, db, auth }) {
   );
 }
 
-function CommentsSection({ requestId, currentUser, userProfile, wallId, appId, db }) {
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
-    const unsubscribe = onSnapshot(commentsRef, (snapshot) => {
-      const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      loadedComments.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-      setComments(loadedComments);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [requestId, wallId]);
-  const handleSendComment = async (e) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    try {
-      const commentsRef = collection(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId, 'comments');
-      await addDoc(commentsRef, { text: newComment, authorName: userProfile?.name || 'Anônimo', authorId: currentUser.uid, createdAt: serverTimestamp() });
-      const requestRef = doc(db, 'artifacts', appId, 'prayer_walls', wallId, 'requests', requestId);
-      await updateDoc(requestRef, { commentCount: increment(1) });
-      setNewComment('');
-    } catch (err) { console.error(err); }
+function CreateWallScreen({ onSubmit, onCancel }) {
+  const [title, setTitle] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); await onSubmit(title, password); setLoading(false); };
+  return (
+    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center">Novo Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Crie um espaço seguro para seu grupo.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome do Mural</label><div className="relative"><Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Ex: Família Silva..." value={title} onChange={e => setTitle(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha de Acesso</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Defina uma senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:text-white" /></div><p className="text-xs text-slate-400">Compartilhe esta senha apenas com quem deve entrar.</p></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 dark:shadow-none">{loading ? 'Criando...' : 'Criar Mural'}</button></div></form></div>
+  );
+}
+
+function JoinWallScreen({ onSubmit, onCancel }) {
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); await onSubmit(name, password); setLoading(false); };
+  return (
+    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center">Entrar em Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Digite os dados fornecidos pelo criador.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome Exato do Mural</label><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite o nome exato..." value={name} onChange={e => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha do Mural</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite a senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-purple-600 text-white p-4 rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200 dark:shadow-none">{loading ? 'Buscando...' : 'Entrar'}</button></div></form></div>
+  );
+}
+
+function UserAvatar({ src, name, size = "md", className = "" }) {
+  const sizeClasses = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-16 h-16 text-xl", xl: "w-24 h-24 text-3xl" };
+  if (src) return <img src={src} alt={name} className={`${sizeClasses[size]} rounded-full object-cover border border-slate-200 dark:border-slate-600 ${className}`} />;
+  return <div className={`${sizeClasses[size]} rounded-full flex items-center justify-center font-bold shadow-sm bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 ${className}`}>{name ? name.charAt(0).toUpperCase() : <User size={size === 'sm' ? 14 : 20} />}</div>;
+}
+
+function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme }) {
+  const [name, setName] = useState(userProfile?.name || '');
+  const [isEditing, setIsEditing] = useState(false);
+  const fileInputRef = useRef(null);
+  const handleSave = () => { onUpdateName(name); setIsEditing(false); };
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 200; const scaleSize = MAX_WIDTH / img.width; canvas.width = MAX_WIDTH; canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          onUpdatePhoto(canvas.toDataURL('image/jpeg', 0.7)); 
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  const handleAddToCalendar = () => {
+    const title = "Momento de Oração";
+    const details = "Tempo dedicado para acessar o Mural de Oração e interceder.";
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&recur=RRULE:FREQ=DAILY`;
+    window.open(googleCalendarUrl, '_blank');
   };
   return (
-    <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 transition-colors"><div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">{loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}{!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}{comments.map(comment => (<div key={comment.id} className="flex flex-col bg-white dark:bg-slate-800 p-2 rounded shadow-sm"><span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mb-0.5">{comment.authorName}</span><span className="text-xs text-slate-700 dark:text-slate-300">{comment.text}</span></div>))}</div><form onSubmit={handleSendComment} className="flex gap-2"><input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-400" /><button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors"><Send size={14} /></button></form></div>
+    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-blue-600" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full shadow-md hover:bg-blue-700 transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-blue-400 ring-2 ring-blue-100 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-blue-600 text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 2.3.0 Stable</div></div>
   );
 }
