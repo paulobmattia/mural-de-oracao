@@ -7,8 +7,7 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut,
-  updateProfile
+  signOut
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -43,7 +42,9 @@ import {
   Settings,
   Save,
   Calendar,
-  Bell
+  Bell,
+  Moon,
+  Sun
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -69,8 +70,37 @@ export default function PrayerApp() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, requestId: null });
+  
+  // Estado do Tema (Dark Mode)
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
-  // 1. Monitorar Autenticação
+  // 1. Efeito para Favicon e Tema
+  useEffect(() => {
+    // Atualizar Favicon
+    const link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      const newLink = document.createElement('link');
+      newLink.rel = 'icon';
+      newLink.href = '/icon.png';
+      document.head.appendChild(newLink);
+    } else {
+      link.href = '/icon.png';
+    }
+
+    // Atualizar Classe Dark Mode
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  // 2. Monitorar Autenticação
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -82,7 +112,6 @@ export default function PrayerApp() {
             setUserProfile(docSnap.data());
             setView((v) => (v === 'login' || v === 'splash' ? 'home' : v));
           } else {
-             // Se não tiver perfil, cria um básico baseado no Auth
              const initialData = { 
                 name: currentUser.displayName || 'Visitante', 
                 email: currentUser.email 
@@ -100,20 +129,37 @@ export default function PrayerApp() {
     return () => unsubscribe();
   }, [view]);
 
-  // 2. Listener de Pedidos
+  // 3. Listener de Pedidos com ORDENAÇÃO INTELIGENTE
   useEffect(() => {
     if (!user) return;
     const requestsRef = collection(db, 'artifacts', appId, 'public', 'data', 'prayer_requests');
+    
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      loadedRequests.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      
+      // Lógica de Ordenação
+      loadedRequests.sort((a, b) => {
+        const userId = user.uid;
+        const aPrayed = a.prayedBy?.includes(userId) || false;
+        const bPrayed = b.prayedBy?.includes(userId) || false;
+
+        // 1º Critério: Se eu oro, aparece primeiro
+        if (aPrayed && !bPrayed) return -1;
+        if (!aPrayed && bPrayed) return 1;
+
+        // 2º Critério: Data (mais recentes primeiro)
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+
       setRequests(loadedRequests);
       setLoading(false);
     }, (error) => { console.error(error); setLoading(false); });
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Timer Splash
+  // 4. Timer Splash
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!user) setView('login');
@@ -212,7 +258,7 @@ export default function PrayerApp() {
   if (view === 'login') return <LoginScreen onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} />;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 overflow-hidden relative flex flex-col" style={{ fontFamily: "'Roboto', sans-serif" }}>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 overflow-hidden relative flex flex-col transition-colors duration-300" style={{ fontFamily: "'Roboto', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', sans-serif; }
@@ -227,7 +273,7 @@ export default function PrayerApp() {
 
       <Header view={view} setView={setView} />
 
-      <main className="flex-1 w-full max-w-md md:max-w-6xl mx-auto relative bg-slate-50 md:px-6">
+      <main className="flex-1 w-full max-w-md md:max-w-6xl mx-auto relative bg-slate-50 dark:bg-slate-900 md:px-6 transition-colors duration-300">
         {view === 'home' && (
           <HomeScreen onViewChange={setView} requestCount={requests.length} userName={userProfile?.name} />
         )}
@@ -248,7 +294,9 @@ export default function PrayerApp() {
           <SettingsScreen 
             userProfile={userProfile} 
             onUpdateName={handleUpdateName} 
-            onLogout={handleLogout} 
+            onLogout={handleLogout}
+            theme={theme}
+            toggleTheme={toggleTheme}
           />
         )}
       </main>
@@ -256,17 +304,17 @@ export default function PrayerApp() {
       {/* MODAL EXCLUSÃO */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200">
             <div className="flex flex-col items-center text-center gap-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 mb-2">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center text-red-600 mb-2">
                 <AlertTriangle size={24} />
               </div>
-              <h3 className="text-xl font-bold text-slate-800">ATENÇÃO!</h3>
-              <p className="text-slate-500 text-sm leading-relaxed">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">ATENÇÃO!</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
                 Tem certeza que deseja excluir este pedido de oração?
               </p>
               <div className="flex gap-3 w-full mt-2">
-                <button onClick={() => setDeleteModal({ isOpen: false, requestId: null })} className="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-colors">Cancelar</button>
+                <button onClick={() => setDeleteModal({ isOpen: false, requestId: null })} className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancelar</button>
                 <button onClick={confirmDelete} className="flex-1 py-3 px-4 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Excluir</button>
               </div>
             </div>
@@ -281,7 +329,7 @@ export default function PrayerApp() {
 
 function SplashScreen() {
   return (
-    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
+    <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
       <div className="animate-fade-simple flex flex-col items-center">
         <img src="/icon.png" alt="Logo" className="w-40 h-40 object-contain mb-6" />
       </div>
@@ -306,30 +354,30 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white animate-in fade-in slide-in-from-bottom-8 duration-700">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 animate-in fade-in slide-in-from-bottom-8 duration-700 transition-colors duration-300">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
              <img src="/icon.png" alt="Logo" className="w-24 h-24 object-contain" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-800">{isRegister ? 'Criar Conta' : 'Bem-vindo de volta'}</h2>
-          <p className="text-slate-500 text-sm mt-2">Entre para se conectar à corrente de oração.</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isRegister ? 'Criar Conta' : 'Bem-vindo de volta'}</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Entre para se conectar à corrente de oração.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {isRegister && (
             <div className="relative group animate-in slide-in-from-top-2 fade-in duration-300">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-              <input type="text" required placeholder="Seu nome completo" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all" />
+              <input type="text" required placeholder="Seu nome completo" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 dark:text-white transition-all" />
             </div>
           )}
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-            <input type="email" required placeholder="Seu e-mail" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all" />
+            <input type="email" required placeholder="Seu e-mail" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 dark:text-white transition-all" />
           </div>
           <div className="relative group">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-            <input type="password" required placeholder="Sua senha" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all" />
+            <input type="password" required placeholder="Sua senha" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 dark:text-white transition-all" />
           </div>
           
           <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-70">
@@ -338,12 +386,12 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
         </form>
 
         <div className="my-6 flex items-center gap-4">
-          <div className="h-px flex-1 bg-slate-100"></div>
+          <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div>
           <span className="text-xs text-slate-400 font-bold uppercase">Ou continue com</span>
-          <div className="h-px flex-1 bg-slate-100"></div>
+          <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div>
         </div>
 
-        <button type="button" onClick={onGoogleLogin} className="w-full bg-white border border-slate-200 text-slate-700 p-4 rounded-xl font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-3">
+        <button type="button" onClick={onGoogleLogin} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 p-4 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-3">
           <svg className="w-5 h-5" viewBox="0 0 24 24">
              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -353,7 +401,7 @@ function LoginScreen({ onEmailLogin, onGoogleLogin }) {
           Google
         </button>
         <div className="mt-8 text-center">
-          <button onClick={() => setIsRegister(!isRegister)} className="text-sm text-slate-500 hover:text-blue-600 transition-colors font-medium">
+          <button onClick={() => setIsRegister(!isRegister)} className="text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 transition-colors font-medium">
             {isRegister ? 'Já tem uma conta? Faça login' : 'Não tem conta? Cadastre-se'}
           </button>
         </div>
@@ -392,7 +440,7 @@ function Header({ view, setView }) {
 }
 
 // --- TELA DE CONFIGURAÇÕES ---
-function SettingsScreen({ userProfile, onUpdateName, onLogout }) {
+function SettingsScreen({ userProfile, onUpdateName, onLogout, theme, toggleTheme }) {
   const [name, setName] = useState(userProfile?.name || '');
   const [isEditing, setIsEditing] = useState(false);
 
@@ -402,22 +450,39 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout }) {
   };
 
   const handleAddToCalendar = () => {
-    // Cria um link para adicionar ao Google Agenda
     const title = "Momento de Oração";
     const details = "Tempo dedicado para acessar o Mural de Oração e interceder.";
     const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&recur=RRULE:FREQ=DAILY`;
-    
     window.open(googleCalendarUrl, '_blank');
   };
 
   return (
     <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto">
       
-      {/* Seção de Perfil */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
-        <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-3">
+      {/* Aparência */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+        <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
+          <Sun className="text-yellow-500" size={20} />
+          <h3 className="font-bold text-slate-700 dark:text-white">Aparência</h3>
+        </div>
+        <div className="p-6 flex items-center justify-between">
+          <span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span>
+          <button 
+            onClick={toggleTheme} 
+            className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}
+          >
+            <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>
+              {theme === 'dark' ? <Moon size={14} className="text-blue-600" /> : <Sun size={14} className="text-yellow-500" />}
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Perfil */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+        <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
           <User className="text-blue-500" size={20} />
-          <h3 className="font-bold text-slate-700">Meu Perfil</h3>
+          <h3 className="font-bold text-slate-700 dark:text-white">Meu Perfil</h3>
         </div>
         <div className="p-6 flex flex-col gap-4">
           <div>
@@ -428,14 +493,14 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout }) {
                 value={name}
                 disabled={!isEditing}
                 onChange={(e) => setName(e.target.value)}
-                className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white border-blue-400 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-blue-400 ring-2 ring-blue-100 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}
               />
               {isEditing ? (
                 <button onClick={handleSave} className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-colors">
                   <Save size={20} />
                 </button>
               ) : (
-                <button onClick={() => setIsEditing(true)} className="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors">
+                <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
                   <Settings size={20} />
                 </button>
               )}
@@ -445,19 +510,19 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout }) {
         </div>
       </div>
 
-      {/* Seção de Notificações / Calendário */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
-        <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-3">
+      {/* Lembrete */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+        <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
           <Bell className="text-orange-500" size={20} />
-          <h3 className="font-bold text-slate-700">Lembrete Diário</h3>
+          <h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3>
         </div>
         <div className="p-6">
-          <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
             Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.
           </p>
           <button 
             onClick={handleAddToCalendar}
-            className="w-full bg-orange-50 text-orange-700 border border-orange-200 p-4 rounded-xl font-bold hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+            className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"
           >
             <Calendar size={20} />
             Adicionar à minha Agenda
@@ -465,17 +530,16 @@ function SettingsScreen({ userProfile, onUpdateName, onLogout }) {
         </div>
       </div>
 
-      {/* Botão de Sair */}
       <button 
         onClick={onLogout}
-        className="w-full bg-white border border-red-100 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-sm"
+        className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"
       >
         <LogOut size={20} />
         Sair da Conta
       </button>
 
-      <div className="text-center mt-8 text-xs text-slate-300">
-        Versão 1.2.0
+      <div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">
+        Versão 1.3.0
       </div>
     </div>
   );
@@ -485,33 +549,32 @@ function HomeScreen({ onViewChange, requestCount, userName }) {
   return (
     <div className="p-6 flex flex-col gap-6 pb-20 animate-in fade-in pt-8 md:pt-16 max-w-4xl mx-auto">
       <div className="text-center mb-4">
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Olá, {userName || 'Visitante'}</h2>
-        <p className="text-slate-500 text-sm italic bg-blue-50 inline-block px-4 py-1 rounded-full">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Olá, {userName || 'Visitante'}</h2>
+        <p className="text-slate-500 dark:text-slate-400 text-sm italic bg-blue-50 dark:bg-slate-800 inline-block px-4 py-1 rounded-full">
           "Orai uns pelos outros para serdes curados."
         </p>
       </div>
       
-      {/* Layout Flexível: Coluna no celular, Linha no computador */}
       <div className="flex flex-col md:flex-row gap-6 justify-center">
         <button 
           onClick={() => onViewChange('write')} 
-          className="group bg-white p-6 rounded-2xl shadow-md border border-blue-100 hover:border-blue-300 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
+          className="group bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-blue-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
         >
-          <div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+          <div className="bg-blue-100 dark:bg-slate-700 p-4 rounded-full text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
             <Plus size={32} />
           </div>
-          <span className="text-lg font-bold text-slate-700">Deixar um Pedido</span>
+          <span className="text-lg font-bold text-slate-700 dark:text-white">Deixar um Pedido</span>
         </button>
 
         <button 
           onClick={() => onViewChange('read')} 
-          className="group bg-white p-6 rounded-2xl shadow-md border border-purple-100 hover:border-purple-300 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
+          className="group bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-purple-100 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-500 transition-all active:scale-95 flex flex-col items-center gap-3 flex-1 max-w-sm"
         >
-          <div className="bg-purple-100 p-4 rounded-full text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+          <div className="bg-purple-100 dark:bg-slate-700 p-4 rounded-full text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white transition-colors">
             <BookOpen size={32} />
           </div>
-          <span className="text-lg font-bold text-slate-700">Interceder</span>
-          <span className="text-xs text-slate-400 text-center">
+          <span className="text-lg font-bold text-slate-700 dark:text-white">Interceder</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500 text-center">
             {requestCount > 0 ? `${requestCount} pedidos ativos` : 'Seja o primeiro a ver os pedidos'}
           </span>
         </button>
@@ -536,27 +599,27 @@ function WriteScreen({ onSubmit, userName }) {
   return (
     <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm transition-colors">
           <div className="flex items-center gap-3">
-             <div className={`p-2 rounded-full ${isAnonymous ? 'bg-slate-100' : 'bg-blue-100'}`}>
-               <User size={20} className={isAnonymous ? 'text-slate-500' : 'text-blue-600'} />
+             <div className={`p-2 rounded-full ${isAnonymous ? 'bg-slate-100 dark:bg-slate-700' : 'bg-blue-100 dark:bg-slate-700'}`}>
+               <User size={20} className={isAnonymous ? 'text-slate-500 dark:text-slate-400' : 'text-blue-600 dark:text-blue-400'} />
              </div>
              <div className="flex flex-col">
                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Publicar como</span>
-               <span className="font-medium text-slate-700">{isAnonymous ? 'Anônimo' : (userName || 'Você')}</span>
+               <span className="font-medium text-slate-700 dark:text-white">{isAnonymous ? 'Anônimo' : (userName || 'Você')}</span>
              </div>
           </div>
-          <button type="button" onClick={() => setIsAnonymous(!isAnonymous)} className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300' : 'bg-blue-500'}`}>
+          <button type="button" onClick={() => setIsAnonymous(!isAnonymous)} className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${isAnonymous ? 'bg-slate-300 dark:bg-slate-600' : 'bg-blue-500'}`}>
             <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full shadow-sm transition-transform duration-300 ${isAnonymous ? 'translate-x-0' : 'translate-x-5'}`}></div>
           </button>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-          <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+          <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
             <Sparkles size={16} /> Seu Pedido de Oração
           </label>
-          <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 rounded-lg outline-none focus:ring-2 focus:ring-blue-200 transition-all resize-none text-slate-700" />
+          <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700" />
         </div>
-        <button disabled={isSubmitting} type="submit" className="bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
+        <button disabled={isSubmitting} type="submit" className="bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg shadow-blue-200 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
           {isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}
         </button>
       </form>
@@ -587,7 +650,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
   const commentCount = request.commentCount || 0;
 
   return (
-    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all hover:shadow-md relative group h-fit">
+    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all hover:shadow-md relative group h-fit">
       {isAuthor && (
         <button onClick={() => onDeleteClick(request.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1">
           <X size={16} />
@@ -595,21 +658,21 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
       )}
       <div className="flex justify-between items-start mb-3 pr-6">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isAuthor ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isAuthor ? 'bg-blue-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'}`}>
             {avatarInitial}
           </div>
           <div>
-            <h3 className="font-bold text-slate-800 text-sm">{displayName}</h3>
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm">{displayName}</h3>
             <p className="text-xs text-slate-400 flex items-center gap-1">
                {request.createdAt ? new Date(request.createdAt.seconds * 1000).toLocaleDateString() : 'Agora'}
-               {isAuthor && <span className="bg-blue-50 text-blue-600 px-1.5 rounded text-[10px] font-bold tracking-wide">VOCÊ</span>}
+               {isAuthor && <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 rounded text-[10px] font-bold tracking-wide">VOCÊ</span>}
             </p>
           </div>
         </div>
       </div>
-      <p className="text-slate-600 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
-      <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-        <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 flex items-center gap-1.5 font-medium hover:text-blue-600 transition-colors group">
+      <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">{request.content}</p>
+      <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-700">
+        <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors group">
           <MessageCircle size={16} />
           Comentários
           {commentCount > 0 && (
@@ -618,7 +681,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick }
             </span>
           )}
         </button>
-        <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${isPraying ? 'bg-[#649fce] text-white border-[#649fce]' : 'bg-transparent border-slate-300 text-slate-500 hover:border-red-200 hover:text-red-500'} active:scale-95`}>
+        <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${isPraying ? 'bg-[#649fce] text-white border-[#649fce]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'} active:scale-95`}>
           {isPraying ? (<>Orando <Heart size={14} className="fill-red-500 text-red-500" /></>) : (<>Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" /></>)}
           <span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>| {prayedBy.length}</span>
         </button>
@@ -664,19 +727,19 @@ function CommentsSection({ requestId, currentUser, userProfile }) {
   };
 
   return (
-    <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100 animate-in fade-in slide-in-from-top-2">
+    <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 transition-colors">
       <div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">
         {loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}
         {!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}
         {comments.map(comment => (
-          <div key={comment.id} className="flex flex-col bg-white p-2 rounded shadow-sm">
-            <span className="text-[10px] font-bold text-blue-600 mb-0.5">{comment.authorName}</span>
-            <span className="text-xs text-slate-700">{comment.text}</span>
+          <div key={comment.id} className="flex flex-col bg-white dark:bg-slate-800 p-2 rounded shadow-sm">
+            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mb-0.5">{comment.authorName}</span>
+            <span className="text-xs text-slate-700 dark:text-slate-300">{comment.text}</span>
           </div>
         ))}
       </div>
       <form onSubmit={handleSendComment} className="flex gap-2">
-        <input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 outline-none focus:border-blue-400" />
+        <input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-400" />
         <button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors">
           <Send size={14} />
         </button>
