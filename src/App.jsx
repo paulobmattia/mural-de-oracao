@@ -85,7 +85,7 @@ function ToastNotification({ message, type, onClose }) {
   const icon = type === 'error' ? <AlertTriangle size={18} /> : type === 'info' ? <Info size={18} /> : <Check size={18} />;
 
   return (
-    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[70] flex items-center gap-3 px-6 py-3 rounded-full text-white animate-fade-in-down ${bgClass}`}>
+    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[70] flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white animate-fade-in-down ${bgClass}`}>
       {icon}
       <span className="text-sm font-medium">{message}</span>
     </div>
@@ -867,8 +867,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
       </div>
         
       {!showTestimonials && (
-          // Correção do carrossel: usar overflow-x-auto e padding horizontal para evitar cortes
-          <div className="w-full overflow-x-auto no-scrollbar pb-2 -mx-6 px-6 flex gap-2 pl-10 pr-6">
+          // Correção do carrossel: remover padding fixo grande e usar espaçamento flexível
+          <div className="-mx-6 px-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar w-[calc(100%+48px)] mb-2 pl-8">
              {CATEGORIES.map(tag => (
                <button 
                 key={tag} 
@@ -878,8 +878,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
                  {tag}
                </button>
              ))}
-             {/* Espaçador final para garantir que o último item não fique colado */}
-             <div className="w-4 flex-shrink-0" />
+             <div className="w-4 flex-shrink-0"></div>
           </div>
       )}
 
@@ -907,7 +906,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
       </div>
 
       {mode === 'read' && !showTestimonials && (
-        <button onClick={() => setMode('write')} className="fixed bottom-6 right-6 w-14 h-14 bg-[#973130] hover:bg-[#7d2827] text-white rounded-full shadow-lg shadow-[#973130]/30 dark:shadow-none flex items-center justify-center active:scale-95 transition-all z-30"><Plus size={28} /></button>
+        <button onClick={() => setMode('write')} className="fixed bottom-6 right-6 w-14 h-14 bg-[#973130] hover:bg-[#7d2827] text-white rounded-full dark:shadow-none flex items-center justify-center active:scale-95 transition-all z-30"><Plus size={28} /></button>
       )}
 
       {deleteModal.isOpen && (
@@ -1175,12 +1174,11 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        <div className="w-full overflow-x-auto no-scrollbar pb-2 -mx-6 px-6 flex gap-2 pl-10 pr-6">
+        <div className="-mx-6 px-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar w-[calc(100%+48px)] mb-2 pl-8">
             {CATEGORIES.map(cat => (
                 <button type="button" key={cat} onClick={() => setCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-bold transition-all border flex-shrink-0 ${category === cat ? 'bg-[#973130] text-white border-[#973130]' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>{cat}</button>
             ))}
-            {/* Spacer final */}
-            <div className="w-4 flex-shrink-0" />
+            <div className="w-4 flex-shrink-0"></div>
         </div>
 
         <div className="flex gap-3">
@@ -1233,7 +1231,7 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
           </div>
         </div>
         
-        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold shadow-lg shadow-[#973130]/30 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
+        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
       </form>
     </div>
   );
