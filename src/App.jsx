@@ -33,7 +33,7 @@ import {
   Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, Mail, Lock, 
   CheckCircle, LogOut, MessageCircle, X, AlertTriangle, Settings, Save, 
   Calendar, Bell, Moon, Sun, Camera, Users, KeyRound, Search, LogIn, ChevronLeft,
-  Filter, Tag, Award, Check, Info, Share2, Copy, Flame, Download, Smartphone
+  Filter, Tag, Award, Check, Info, Share2, Copy, Flame, Download, Smartphone, Flag, Eye, EyeOff, ShieldAlert
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -84,7 +84,7 @@ function ToastNotification({ message, type, onClose }) {
   const icon = type === 'error' ? <AlertTriangle size={18} /> : type === 'info' ? <Info size={18} /> : <Check size={18} />;
 
   return (
-    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white animate-fade-in-down ${bgClass}`}>
+    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[70] flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white animate-fade-in-down ${bgClass}`}>
       {icon}
       <span className="text-sm font-medium">{message}</span>
     </div>
@@ -685,7 +685,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
     return () => unsubscribe();
   }, [wall.id, user.uid]);
 
-  const handleCreate = async (content, isAnonymous, category) => {
+  const handleCreate = async (content, isAnonymous, category, visibility) => {
     if (!content.trim()) return;
     try {
       await addDoc(collection(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests'), {
@@ -695,13 +695,15 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
         isAnonymous,
         content,
         category: category || 'Geral',
+        visibility: visibility || 'public', // 'public' or 'private'
         createdAt: serverTimestamp(),
         prayedBy: [],
         commentCount: 0,
-        isAnswered: false
+        isAnswered: false,
+        reports: 0
       });
       setMode('read');
-      showToast('Pedido enviado!');
+      showToast(visibility === 'private' ? 'Salvo no seu diário privado.' : 'Pedido enviado!');
     } catch (error) { showToast("Erro ao enviar.", 'error'); }
   };
 
@@ -713,6 +715,17 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
 
     const docRef = doc(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests', requestId);
     await updateDoc(docRef, { prayedBy: isPraying ? arrayRemove(user.uid) : arrayUnion(user.uid) });
+  };
+
+  const handleReport = async (requestId) => {
+      if (!confirm("Deseja denunciar este conteúdo como impróprio?")) return;
+      try {
+          const docRef = doc(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests', requestId);
+          await updateDoc(docRef, { reports: increment(1) });
+          showToast("Denúncia enviada. Obrigado por ajudar a comunidade.", 'success');
+      } catch (err) {
+          showToast("Erro ao denunciar.", 'error');
+      }
   };
 
   const confirmMarkAnswered = async () => {
@@ -732,6 +745,9 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
 
   // Lógica de Filtragem e Ordenação Avançada
   const processedRequests = requests.filter(req => {
+    // Fase 3: Filtro de Privacidade
+    if (req.visibility === 'private' && req.authorId !== user.uid) return false;
+
     if (showTestimonials) return req.isAnswered;
     if (req.isAnswered) return false; 
     if (filterTag && req.category !== filterTag) return false;
@@ -814,6 +830,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
             onPray={handlePray} 
             onDeleteClick={(id) => setDeleteModal({ isOpen: true, requestId: id })} 
             onMarkAnswered={(id) => setMarkAnsweredModal({ isOpen: true, requestId: id })}
+            onReport={handleReport}
             wallId={wall.id} 
             appId={appId} 
             db={db}
@@ -861,7 +878,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
   );
 }
 
-function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, currentUser, userProfile, wallId, appId, db, isWallAdmin, isTestimonialMode, showToast }) {
+function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, onReport, currentUser, userProfile, wallId, appId, db, isWallAdmin, isTestimonialMode, showToast }) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
@@ -885,6 +902,7 @@ function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, 
           onPray={onPray} 
           onDeleteClick={onDeleteClick}
           onMarkAnswered={onMarkAnswered}
+          onReport={onReport}
           wallId={wallId} 
           appId={appId} 
           db={db}
@@ -897,7 +915,7 @@ function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, 
   );
 }
 
-function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, onMarkAnswered, wallId, appId, db, isWallAdmin, isTestimonial, showToast }) {
+function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, onMarkAnswered, onReport, wallId, appId, db, isWallAdmin, isTestimonial, showToast }) {
   const prayedBy = request.prayedBy || [];
   const isPraying = prayedBy.includes(currentUser?.uid);
   const isAuthor = request.authorId === currentUser?.uid;
@@ -906,6 +924,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
   const displayPhoto = request.isAnonymous ? null : request.authorPhoto;
   const commentCount = request.commentCount || 0;
   const canDelete = isAuthor || isWallAdmin;
+  const isPrivate = request.visibility === 'private';
 
   // Inovação Fase 1: Compartilhamento Nativo
   const handleShare = async () => {
@@ -928,12 +947,28 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
   };
 
   return (
-    <div className={`bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border transition-all hover:shadow-md relative group h-fit ${isTestimonial ? 'border-yellow-400 dark:border-yellow-600 ring-1 ring-yellow-100 dark:ring-yellow-900' : 'border-slate-100 dark:border-slate-700'}`}>
+    <div className={`bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border transition-all hover:shadow-md relative group h-fit ${isTestimonial ? 'border-yellow-400 dark:border-yellow-600 ring-1 ring-yellow-100 dark:ring-yellow-900' : isPrivate ? 'border-slate-200 dark:border-slate-700 ring-1 ring-slate-200 dark:ring-slate-700 border-dashed' : 'border-slate-100 dark:border-slate-700'}`}>
+      {/* Badge Privado */}
+      {isPrivate && (
+          <div className="absolute -top-2 -left-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold shadow-sm border border-slate-300 dark:border-slate-600">
+              <Lock size={10} /> DIÁRIO
+          </div>
+      )}
+
       <div className="absolute top-3 right-3 flex gap-1">
+        {/* Botão de Denúncia para não-autores */}
+        {!isAuthor && !isTestimonial && (
+            <button onClick={() => onReport(request.id)} className="p-1.5 text-slate-300 hover:text-orange-500 transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700" title="Denunciar">
+                <Flag size={14} />
+            </button>
+        )}
+
         {/* Inovação Fase 1: Botão Compartilhar */}
-        <button onClick={handleShare} className="p-1.5 text-slate-300 hover:text-[#973130] transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700" title="Compartilhar">
-            <Share2 size={16} />
-        </button>
+        {!isPrivate && (
+            <button onClick={handleShare} className="p-1.5 text-slate-300 hover:text-[#973130] transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700" title="Compartilhar">
+                <Share2 size={16} />
+            </button>
+        )}
         
         {canDelete && (<button onClick={() => onDeleteClick(request.id)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700"><X size={16} /></button>)}
         
@@ -955,7 +990,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
         </div>
       </div>
       
-      <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1 font-serif">
+      <p className={`text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1 font-serif ${isPrivate ? 'italic opacity-90' : ''}`}>
         {isTestimonial && <span className="block font-bold text-yellow-600 dark:text-yellow-500 mb-1 text-xs uppercase tracking-wide font-sans">✨ Graça Alcançada</span>}
         {request.content}
       </p>
@@ -987,7 +1022,9 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
 function WriteScreen({ onSubmit, userProfile, onBack }) {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('Geral');
-  const [isAnonymous, setIsAnonymous] = useState(false); 
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  // Fase 3: Visibilidade Privada 
+  const [visibility, setVisibility] = useState('public'); // 'public' | 'private'
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isMounted = useRef(true);
 
@@ -999,7 +1036,7 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
     e.preventDefault();
     if (!content.trim()) return;
     setIsSubmitting(true);
-    await onSubmit(content, isAnonymous, category);
+    await onSubmit(content, isAnonymous, category, visibility);
     if (isMounted.current) {
         setIsSubmitting(false);
     }
@@ -1021,6 +1058,18 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
             <div className="w-4 flex-shrink-0"></div>
         </div>
 
+        {/* Seletor de Privacidade */}
+        <div className="flex gap-3">
+            <button type="button" onClick={() => setVisibility('public')} className={`flex-1 p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${visibility === 'public' ? 'border-[#973130] bg-[#973130]/5 text-[#973130]' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500'}`}>
+                <Eye size={20} />
+                <span className="text-xs font-bold">Público</span>
+            </button>
+            <button type="button" onClick={() => setVisibility('private')} className={`flex-1 p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${visibility === 'private' ? 'border-slate-500 bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500'}`}>
+                <Lock size={20} />
+                <span className="text-xs font-bold">Apenas Eu (Diário)</span>
+            </button>
+        </div>
+
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm transition-colors">
           <div className="flex items-center gap-3">
              <div className={`p-1 rounded-full ${isAnonymous ? 'bg-slate-100 dark:bg-slate-700' : 'bg-[#973130]/10 dark:bg-slate-700'}`}>{isAnonymous ? (<User size={20} className="text-slate-500 dark:text-slate-400 m-2" />) : (<UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="md" />)}</div>
@@ -1035,7 +1084,7 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
           <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2"><Sparkles size={16} /> Seu Pedido de Oração</label>
           <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-[#973130]/30 dark:focus:ring-[#973130]/50 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700 font-serif" />
         </div>
-        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
+        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold shadow-lg shadow-[#973130]/30 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
       </form>
     </div>
   );
@@ -1069,45 +1118,6 @@ function CommentsSection({ requestId, currentUser, userProfile, wallId, appId, d
   return (
     <div className="mt-4 bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 transition-colors"><div className="max-h-40 overflow-y-auto mb-3 space-y-3 custom-scrollbar">{loading && <div className="text-xs text-slate-400 text-center">Carregando...</div>}{!loading && comments.length === 0 && <div className="text-xs text-slate-400 text-center py-2">Seja o primeiro a comentar.</div>}{comments.map(comment => (<div key={comment.id} className="flex flex-col bg-white dark:bg-slate-800 p-2 rounded shadow-sm"><span className="text-[10px] font-bold text-[#973130] dark:text-[#bc5c5b] mb-0.5">{comment.authorName}</span><span className="text-xs text-slate-700 dark:text-slate-300">{comment.text}</span></div>))}</div><form onSubmit={handleSendComment} className="flex gap-2"><input type="text" placeholder="Escreva uma mensagem de apoio..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 text-xs p-2 rounded border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-[#973130]" /><button type="submit" className="bg-[#973130] text-white p-2 rounded hover:bg-[#7d2827] transition-colors"><Send size={14} /></button></form></div>
   );
-}
-
-// Modal de Instruções PWA
-function InstallModal({ isOpen, onClose }) {
-    if (!isOpen) return null;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-    return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl relative">
-                <button onClick={onClose} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"><X size={20}/></button>
-                <div className="w-16 h-16 bg-blue-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Smartphone size={32} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 font-serif">Instalar Aplicativo</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                    Adicione o Mural de Oração à sua tela inicial para acessar mais rápido e sem digitar o site.
-                </p>
-                
-                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl text-left text-sm text-slate-600 dark:text-slate-300 mb-6 border border-slate-100 dark:border-slate-700">
-                    {isIOS ? (
-                        <ol className="list-decimal ml-4 space-y-2">
-                            <li>Toque no botão <strong>Compartilhar</strong> <Share2 size={12} className="inline"/> do navegador.</li>
-                            <li>Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>.</li>
-                            <li>Confirme clicando em <strong>Adicionar</strong>.</li>
-                        </ol>
-                    ) : (
-                        <ol className="list-decimal ml-4 space-y-2">
-                            <li>Toque no menu do navegador (três pontinhos).</li>
-                            <li>Selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.</li>
-                            <li>Siga as instruções na tela.</li>
-                        </ol>
-                    )}
-                </div>
-
-                <button onClick={onClose} className="w-full py-3 bg-[#973130] text-white rounded-xl font-bold hover:bg-[#7d2827] transition-colors">Entendi</button>
-            </div>
-        </div>
-    );
 }
 
 function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme }) {
