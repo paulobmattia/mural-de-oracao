@@ -85,7 +85,7 @@ function ToastNotification({ message, type, onClose }) {
   const icon = type === 'error' ? <AlertTriangle size={18} /> : type === 'info' ? <Info size={18} /> : <Check size={18} />;
 
   return (
-    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[70] flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white animate-fade-in-down ${bgClass}`}>
+    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[70] flex items-center gap-3 px-6 py-3 rounded-full text-white animate-fade-in-down ${bgClass}`}>
       {icon}
       <span className="text-sm font-medium">{message}</span>
     </div>
@@ -245,7 +245,8 @@ export default function PrayerApp() {
                     email: currentUser.email,
                     photoURL: currentUser.photoURL || null,
                     joinedWalls: [],
-                    streak: 0
+                    streak: 0,
+                    notifications: { push: false, email: false }
                 };
                 setDoc(profileRef, initialData);
                 setUserProfile(initialData);
@@ -365,6 +366,33 @@ export default function PrayerApp() {
     showToast("Foto atualizada!");
   };
 
+  const toggleNotificationSetting = async (type) => {
+      if (!user) return;
+      const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
+      const currentSettings = userProfile.notifications || { push: false, email: false };
+      
+      const newState = !currentSettings[type];
+      
+      // Simulação de ativação (sem backend)
+      if (type === 'push' && newState === true) {
+          if ('Notification' in window) {
+              try {
+                  const permission = await Notification.requestPermission();
+                  if (permission !== 'granted') {
+                      showToast("Permissão de notificação negada.", "error");
+                      return;
+                  }
+              } catch (err) {
+                  // Ignore errors in envs without notification support
+              }
+          }
+      }
+
+      await updateDoc(userRef, { 
+          notifications: { ...currentSettings, [type]: newState } 
+      });
+  };
+
   if (view === 'splash') return <SplashScreen />;
   if (view === 'login') return <LoginScreen onLoginSuccess={() => setView('wall-list')} appId={appId} db={db} auth={auth} showToast={showToast} />;
 
@@ -446,6 +474,7 @@ export default function PrayerApp() {
                 onLogout={handleLogout} 
                 theme={theme} 
                 toggleTheme={toggleTheme} 
+                onToggleNotification={toggleNotificationSetting}
             />
         )}
       </main>
@@ -610,10 +639,10 @@ function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Entre para conectar-se aos seus murais.</p>
         </div>
         <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
-          {isRegister && <input type="text" required placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />}
-          <input type="email" required placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />
-          <input type="password" required placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />
-          <button type="submit" disabled={loading} className="w-full bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold active:scale-95 transition-all disabled:opacity-70 shadow-md shadow-[#973130]/30">{loading ? '...' : (isRegister ? 'Cadastrar' : 'Entrar')}</button>
+          {isRegister && <input type="text" required placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white focus:border-[#973130]" />}
+          <input type="email" required placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white focus:border-[#973130]" />
+          <input type="password" required placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white focus:border-[#973130]" />
+          <button type="submit" disabled={loading} className="w-full bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold active:scale-95 transition-all disabled:opacity-70">{loading ? '...' : (isRegister ? 'Cadastrar' : 'Entrar')}</button>
         </form>
         <div className="flex items-center gap-4"><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div><span className="text-xs text-slate-400 font-bold uppercase">Ou</span><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div></div>
         <button type="button" onClick={handleGoogleLogin} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 p-4 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-3">
@@ -670,7 +699,7 @@ function WallListScreen({ userProfile, db, appId, onSelectWall, onCreateNew, onJ
 
       <div className="grid grid-cols-2 gap-4 mb-8">
         <button onClick={onCreateNew} className="bg-[#973130]/10 dark:bg-[#973130]/20 border border-[#973130]/20 dark:border-[#973130]/30 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-[#973130]/20 dark:hover:bg-[#973130]/40 transition-colors"><div className="bg-[#973130] text-white p-2 rounded-full"><Plus size={20} /></div><span className="text-sm font-bold text-[#973130] dark:text-[#bc5c5b]">Criar Mural</span></button>
-        <button onClick={onJoinExisting} className="bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"><div className="bg-purple-500 text-white p-2 rounded-full"><Search size={20} /></div><span className="text-sm font-bold text-purple-700 dark:text-purple-300">Entrar em Mural</span></button>
+        <button onClick={onJoinExisting} className="bg-[#973130]/10 dark:bg-[#973130]/20 border border-[#973130]/20 dark:border-[#973130]/30 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-[#973130]/20 dark:hover:bg-[#973130]/40 transition-colors"><div className="bg-[#973130] text-white p-2 rounded-full"><Search size={20} /></div><span className="text-sm font-bold text-[#973130] dark:text-[#bc5c5b]">Entrar em Mural</span></button>
       </div>
 
       <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2 font-serif"><BookOpen size={20} /> Meus Murais</h3>
@@ -699,7 +728,7 @@ function JoinWallScreen({ onSubmit, onCancel }) {
   const [loading, setLoading] = useState(false);
   const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); await onSubmit(name, password); setLoading(false); };
   return (
-    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center font-serif">Entrar em Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Digite os dados fornecidos pelo criador.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome Exato do Mural</label><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite o nome exato..." value={name} onChange={e => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha do Mural</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite a senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-purple-600 text-white p-4 rounded-xl font-bold hover:bg-purple-700 transition-colors dark:shadow-none">{loading ? 'Buscando...' : 'Entrar'}</button></div></form></div>
+    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center font-serif">Entrar em Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Digite os dados fornecidos pelo criador.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome Exato do Mural</label><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite o nome exato..." value={name} onChange={e => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#973130] dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha do Mural</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite a senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#973130] dark:text-white" /></div></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-[#973130] text-white p-4 rounded-xl font-bold hover:bg-[#7d2827] transition-colors dark:shadow-none">{loading ? 'Buscando...' : 'Entrar'}</button></div></form></div>
   );
 }
 
@@ -838,7 +867,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
       </div>
         
       {!showTestimonials && (
-          <div className="-mx-6 px-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar w-[calc(100%+48px)] mb-2 pl-8">
+          // Correção do carrossel: usar overflow-x-auto e padding horizontal para evitar cortes
+          <div className="w-full overflow-x-auto no-scrollbar pb-2 -mx-6 px-6 flex gap-2 pl-10 pr-6">
              {CATEGORIES.map(tag => (
                <button 
                 key={tag} 
@@ -848,7 +878,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
                  {tag}
                </button>
              ))}
-             <div className="w-4 flex-shrink-0"></div>
+             {/* Espaçador final para garantir que o último item não fique colado */}
+             <div className="w-4 flex-shrink-0" />
           </div>
       )}
 
@@ -1036,6 +1067,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
         </button>
         
         {!isTestimonial ? (
+            // Inovação Fase 1: Micro-interação Animada no botão de orar
             <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border active:scale-95 ${isPraying ? 'bg-[#973130] text-white border-[#973130]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'}`}>
             {isPraying ? (
                 <>Orando <Heart size={14} className="fill-white text-white animate-heart-burst" /></>
@@ -1143,12 +1175,12 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        <div className="-mx-6 px-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar w-[calc(100%+48px)]">
-            <div className="w-4 flex-shrink-0"></div>
+        <div className="w-full overflow-x-auto no-scrollbar pb-2 -mx-6 px-6 flex gap-2 pl-10 pr-6">
             {CATEGORIES.map(cat => (
                 <button type="button" key={cat} onClick={() => setCategory(cat)} className={`px-4 py-2 rounded-full text-sm font-bold transition-all border flex-shrink-0 ${category === cat ? 'bg-[#973130] text-white border-[#973130]' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>{cat}</button>
             ))}
-            <div className="w-4 flex-shrink-0"></div>
+            {/* Spacer final */}
+            <div className="w-4 flex-shrink-0" />
         </div>
 
         <div className="flex gap-3">
@@ -1313,11 +1345,6 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
     <div className="p-6 max-w-xl mx-auto animate-in fade-in">
         <InstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
         
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div>
-        
-        {/* Inovação Fase 2: Instalar PWA */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Smartphone className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aplicativo</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Instale o Mural de Oração no seu celular para acessar mais rápido.</p><button onClick={() => setShowInstallModal(true)} className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 p-4 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"><Download size={20} />Instalar App</button></div></div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div></div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Smartphone className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aplicativo</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Instale o Mural de Oração no seu celular para acessar mais rápido.</p><button onClick={() => setShowInstallModal(true)} className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 p-4 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"><Download size={20} />Instalar App</button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div></div>
   );
 }
