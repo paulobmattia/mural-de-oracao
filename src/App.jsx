@@ -612,7 +612,6 @@ function WallListScreen({ userProfile, db, appId, onSelectWall, onCreateNew, onJ
       <div className="flex flex-col items-center mb-8 text-center">
         <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="xl" className="mb-4 shadow-lg border-4 border-white dark:border-slate-800" />
         
-        {/* Inovação Fase 2: Streak Counter */}
         <div className="flex items-center gap-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-4 py-1.5 rounded-full text-sm font-bold mb-3 shadow-sm">
             <Flame size={18} className="fill-orange-500" />
             <span>{userProfile?.streak || 0} dias orando</span>
@@ -667,10 +666,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
   const [markAnsweredModal, setMarkAnsweredModal] = useState({ isOpen: false, requestId: null });
   const [filterTag, setFilterTag] = useState(null);
   const [showTestimonials, setShowTestimonials] = useState(false);
-  
-  // Inovação Fase 2: Filtros Avançados
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState('recent'); // 'recent', 'least_prayed'
+  const [sortBy, setSortBy] = useState('recent'); 
 
   const isWallAdmin = wall.createdBy === user?.uid;
 
@@ -678,7 +675,6 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
     const requestsRef = collection(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests');
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // A ordenação agora é feita no render para suportar os filtros dinâmicos
       setRequests(loadedRequests);
       setLoading(false);
     });
@@ -695,7 +691,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
         isAnonymous,
         content,
         category: category || 'Geral',
-        visibility: visibility || 'public', // 'public' or 'private'
+        visibility: visibility || 'public', 
         createdAt: serverTimestamp(),
         prayedBy: [],
         commentCount: 0,
@@ -708,11 +704,9 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
   };
 
   const handlePray = async (requestId, isPraying) => {
-    // Inovação Fase 2: Atualizar Streak
     if (!isPraying) {
         await checkAndUpdateStreak(user.uid, userProfile.streak, userProfile.lastPrayedAt);
     }
-
     const docRef = doc(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests', requestId);
     await updateDoc(docRef, { prayedBy: isPraying ? arrayRemove(user.uid) : arrayUnion(user.uid) });
   };
@@ -743,11 +737,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
     showToast('Pedido excluído.');
   };
 
-  // Lógica de Filtragem e Ordenação Avançada
   const processedRequests = requests.filter(req => {
-    // Fase 3: Filtro de Privacidade
     if (req.visibility === 'private' && req.authorId !== user.uid) return false;
-
     if (showTestimonials) return req.isAnswered;
     if (req.isAnswered) return false; 
     if (filterTag && req.category !== filterTag) return false;
@@ -757,12 +748,11 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
       if (sortBy === 'least_prayed') {
           const countA = a.prayedBy ? a.prayedBy.length : 0;
           const countB = b.prayedBy ? b.prayedBy.length : 0;
-          return countA - countB; // Menos orados primeiro
+          return countA - countB; 
       }
-      // Default: Recent + Prioridade de quem eu ainda não orei
       const aPrayed = a.prayedBy?.includes(user.uid) || false;
       const bPrayed = b.prayedBy?.includes(user.uid) || false;
-      if (aPrayed && !bPrayed) return 1; // Joga pro fim
+      if (aPrayed && !bPrayed) return 1; 
       if (!aPrayed && bPrayed) return -1;
       return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
   });
@@ -770,15 +760,12 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
   return (
     <div className="pb-20 pt-4 relative h-full">
       
-      {/* Inovação Fase 2: Barra de Busca e Filtros */}
       <div className="mb-4 flex flex-col gap-3 px-4">
-        {/* Abas Principais */}
         <div className="flex gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm">
             <button onClick={() => setShowTestimonials(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!showTestimonials ? 'bg-[#973130] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}>Mural</button>
             <button onClick={() => setShowTestimonials(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${showTestimonials ? 'bg-yellow-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}><Award size={16} /> Testemunhos</button>
         </div>
 
-        {/* Barra de Busca e Ordenação (Apenas no modo Mural) */}
         {!showTestimonials && (
             <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
                 <div className="relative flex-1">
@@ -802,7 +789,6 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
         )}
       </div>
         
-      {/* Filtros de Categoria */}
       {!showTestimonials && (
           <div className="-mx-6 px-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar w-[calc(100%+48px)] mb-2 pl-8">
              {CATEGORIES.map(tag => (
@@ -926,7 +912,6 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
   const canDelete = isAuthor || isWallAdmin;
   const isPrivate = request.visibility === 'private';
 
-  // Inovação Fase 1: Compartilhamento Nativo
   const handleShare = async () => {
     const shareData = {
       title: 'Mural de Oração',
@@ -948,7 +933,6 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
 
   return (
     <div className={`bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border transition-all hover:shadow-md relative group h-fit ${isTestimonial ? 'border-yellow-400 dark:border-yellow-600 ring-1 ring-yellow-100 dark:ring-yellow-900' : isPrivate ? 'border-slate-200 dark:border-slate-700 ring-1 ring-slate-200 dark:ring-slate-700 border-dashed' : 'border-slate-100 dark:border-slate-700'}`}>
-      {/* Badge Privado */}
       {isPrivate && (
           <div className="absolute -top-2 -left-2 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold shadow-sm border border-slate-300 dark:border-slate-600">
               <Lock size={10} /> DIÁRIO
@@ -956,14 +940,12 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
       )}
 
       <div className="absolute top-3 right-3 flex gap-1">
-        {/* Botão de Denúncia para não-autores */}
         {!isAuthor && !isTestimonial && (
             <button onClick={() => onReport(request.id)} className="p-1.5 text-slate-300 hover:text-orange-500 transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700" title="Denunciar">
                 <Flag size={14} />
             </button>
         )}
 
-        {/* Inovação Fase 1: Botão Compartilhar */}
         {!isPrivate && (
             <button onClick={handleShare} className="p-1.5 text-slate-300 hover:text-[#973130] transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700" title="Compartilhar">
                 <Share2 size={16} />
@@ -1001,7 +983,6 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
         </button>
         
         {!isTestimonial ? (
-            // Inovação Fase 1: Micro-interação Animada no botão de orar
             <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border active:scale-95 ${isPraying ? 'bg-[#973130] text-white border-[#973130]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'}`}>
             {isPraying ? (
                 <>Orando <Heart size={14} className="fill-white text-white animate-heart-burst" /></>
@@ -1023,8 +1004,7 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('Geral');
   const [isAnonymous, setIsAnonymous] = useState(false);
-  // Fase 3: Visibilidade Privada 
-  const [visibility, setVisibility] = useState('public'); // 'public' | 'private'
+  const [visibility, setVisibility] = useState('public'); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isMounted = useRef(true);
 
@@ -1058,7 +1038,6 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
             <div className="w-4 flex-shrink-0"></div>
         </div>
 
-        {/* Seletor de Privacidade */}
         <div className="flex gap-3">
             <button type="button" onClick={() => setVisibility('public')} className={`flex-1 p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${visibility === 'public' ? 'border-[#973130] bg-[#973130]/5 text-[#973130]' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500'}`}>
                 <Eye size={20} />
@@ -1120,6 +1099,45 @@ function CommentsSection({ requestId, currentUser, userProfile, wallId, appId, d
   );
 }
 
+// Modal de Instruções PWA
+function InstallModal({ isOpen, onClose }) {
+    if (!isOpen) return null;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl relative">
+                <button onClick={onClose} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                <div className="w-16 h-16 bg-blue-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Smartphone size={32} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 font-serif">Instalar Aplicativo</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                    Adicione o Mural de Oração à sua tela inicial para acessar mais rápido e sem digitar o site.
+                </p>
+                
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl text-left text-sm text-slate-600 dark:text-slate-300 mb-6 border border-slate-100 dark:border-slate-700">
+                    {isIOS ? (
+                        <ol className="list-decimal ml-4 space-y-2">
+                            <li>Toque no botão <strong>Compartilhar</strong> <Share2 size={12} className="inline"/> do navegador.</li>
+                            <li>Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>.</li>
+                            <li>Confirme clicando em <strong>Adicionar</strong>.</li>
+                        </ol>
+                    ) : (
+                        <ol className="list-decimal ml-4 space-y-2">
+                            <li>Toque no menu do navegador (três pontinhos).</li>
+                            <li>Selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.</li>
+                            <li>Siga as instruções na tela.</li>
+                        </ol>
+                    )}
+                </div>
+
+                <button onClick={onClose} className="w-full py-3 bg-[#973130] text-white rounded-xl font-bold hover:bg-[#7d2827] transition-colors">Entendi</button>
+            </div>
+        </div>
+    );
+}
+
 function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme }) {
   const [name, setName] = useState(userProfile?.name || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -1157,14 +1175,85 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
     <div className="p-6 max-w-xl mx-auto animate-in fade-in">
         <InstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
         
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
+                <Sun className="text-yellow-500" size={20} />
+                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3>
+            </div>
+            <div className="p-6 flex items-center justify-between">
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span>
+                <button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}>
+                    <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>
+                        {theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}
+                    </div>
+                </button>
+            </div>
+        </div>
         
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
+                <User className="text-[#973130]" size={20} />
+                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3>
+            </div>
+            <div className="p-6 flex flex-col gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" />
+                        <button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors">
+                            <Camera size={14} />
+                        </button>
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p>
+                        <p className="text-xs text-slate-400">Toque na câmera para alterar.</p>
+                    </div>
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label>
+                    <div className="flex gap-2 mt-2">
+                        <input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />
+                        {isEditing ? 
+                            <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : 
+                            <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
         
         {/* Inovação Fase 2: Instalar PWA */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Smartphone className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aplicativo</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Instale o Mural de Oração no seu celular para acessar mais rápido.</p><button onClick={() => setShowInstallModal(true)} className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 p-4 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"><Download size={20} />Instalar App</button></div></div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
+                <Smartphone className="text-blue-500" size={20} />
+                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Aplicativo</h3>
+            </div>
+            <div className="p-6">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Instale o Mural de Oração no seu celular para acessar mais rápido.</p>
+                <button onClick={() => setShowInstallModal(true)} className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 p-4 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2">
+                    <Download size={20} /> Instalar App
+                </button>
+            </div>
+        </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
+                <Bell className="text-orange-500" size={20} />
+                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3>
+            </div>
+            <div className="p-6">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p>
+                <button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2">
+                    <Calendar size={20} /> Adicionar à minha Agenda
+                </button>
+            </div>
+        </div>
+
+        <button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <LogOut size={20} /> Sair da Conta
+        </button>
+        
+        <div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div>
     </div>
   );
 }
