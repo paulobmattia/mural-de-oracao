@@ -7,7 +7,8 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut
+  signOut,
+  signInAnonymously
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -34,7 +35,7 @@ import {
   Filter, Tag, Award, Check, Info
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO DO FIREBASE ---
+// --- SUA CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyC7-wps2_vd6Ak2n7bu1E272qdbPP2JknA",
   authDomain: "mural-de-oracao.firebaseapp.com",
@@ -47,7 +48,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = "mural-v2"; 
+const appId = "mural-v2"; // Identificador da coleção no banco de dados
 
 // --- CONSTANTES ---
 const DAILY_VERSES = [
@@ -133,14 +134,13 @@ export default function PrayerApp() {
           const docSnap = await getDoc(profileRef);
           if (docSnap.exists()) {
             setUserProfile(docSnap.data());
-            // Se já carregou o perfil, sai do splash/login para a lista
             setView(v => (v === 'splash' || v === 'login' ? 'wall-list' : v));
           } else {
              const initialData = { 
-                name: currentUser.displayName || 'Visitante', 
-                email: currentUser.email,
-                photoURL: currentUser.photoURL || null,
-                joinedWalls: [] 
+               name: currentUser.displayName || 'Visitante', 
+               email: currentUser.email,
+               photoURL: currentUser.photoURL || null,
+               joinedWalls: [] 
              };
              await setDoc(profileRef, initialData);
              setUserProfile(initialData);
@@ -158,7 +158,6 @@ export default function PrayerApp() {
 
   useEffect(() => {
     const timer = setTimeout(() => { 
-      // Garante que se o usuário não estiver logado após 3.5s, vá para login
       if (!auth.currentUser) setView('login');
     }, 3500);
     return () => clearTimeout(timer);
@@ -265,7 +264,6 @@ export default function PrayerApp() {
   };
 
   if (view === 'splash') return <SplashScreen />;
-  // Correção da Tela Branca: Garantindo que LoginScreen é renderizado quando view === 'login'
   if (view === 'login') return <LoginScreen onLoginSuccess={() => setView('wall-list')} appId={appId} db={db} auth={auth} showToast={showToast} />;
 
   return (
@@ -325,7 +323,6 @@ export default function PrayerApp() {
         {view === 'settings' && <SettingsScreen userProfile={userProfile} onUpdateName={updateName} onUpdatePhoto={updatePhoto} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />}
       </main>
 
-      {/* Modal de Saída Global */}
       {leaveModal.isOpen && activeWall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
@@ -357,7 +354,9 @@ function SplashScreen() {
   return (
     <div className="fixed inset-0 bg-white dark:bg-slate-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
       <div className="animate-fade-simple flex flex-col items-center">
-        <img src="/icon.png" alt="Logo" className="w-40 h-40 object-contain mb-6" />
+        <div className="w-40 h-40 mb-6 bg-blue-50 rounded-full flex items-center justify-center">
+            <BookOpen size={64} className="text-blue-500" />
+        </div>
       </div>
     </div>
   );
@@ -385,7 +384,7 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
 
       <div className="flex-1 flex justify-center items-center gap-2 overflow-hidden">
         {!activeWall && (
-          <img src="/icon.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
+          <BookOpen size={24} className="text-white drop-shadow-sm" />
         )}
         
         <div className="flex flex-col items-center justify-center truncate w-full">
@@ -439,7 +438,6 @@ function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
       onLoginSuccess();
     } catch (error) { 
       console.error(error);
-      // Traduzindo erros comuns para o usuário
       if (error.code === 'auth/unauthorized-domain') {
         showToast("Domínio não autorizado! Configure no Firebase Console.", 'error');
       } else if (error.code === 'auth/invalid-credential') {
@@ -454,24 +452,41 @@ function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
   };
 
   const handleGoogleLogin = async () => {
+    setLoading(true);
     try {
+      // Usando login real com popup para produção
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
-      await saveUserProfile(result.user.uid, { name: result.user.displayName, email: result.user.email, photoURL: result.user.photoURL });
-      onLoginSuccess();
+      if (result.user) {
+          await saveUserProfile(result.user.uid, { 
+              name: result.user.displayName, 
+              email: result.user.email, 
+              photoURL: result.user.photoURL 
+          });
+          onLoginSuccess();
+      }
     } catch (error) { 
       console.error(error); 
-      if (error.code === 'auth/unauthorized-domain') {
-        showToast("Domínio não autorizado no Firebase!", 'error');
+      if (error.code === 'auth/popup-closed-by-user') {
+          showToast("Login cancelado.", 'info');
       } else {
-        showToast("Erro ao conectar com Google", 'error');
+          showToast("Erro ao conectar com Google", 'error');
       }
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 animate-in fade-in slide-in-from-bottom-8 duration-700 transition-colors duration-300">
       <div className="w-full max-w-xs flex flex-col gap-6">
-        <div className="text-center mb-2"><div className="flex justify-center mb-6"><img src="/icon.png" alt="Logo" className="w-24 h-24 object-contain" /></div><h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isRegister ? 'Criar Conta' : 'Bem-vindo'}</h2><p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Entre para conectar-se aos seus murais.</p></div>
+        <div className="text-center mb-2">
+            <div className="flex justify-center mb-6">
+                <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center">
+                    <BookOpen size={48} className="text-blue-600" />
+                </div>
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isRegister ? 'Criar Conta' : 'Bem-vindo'}</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Entre para conectar-se aos seus murais.</p>
+        </div>
         <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
           {isRegister && <input type="text" required placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />}
           <input type="email" required placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />
@@ -736,7 +751,7 @@ function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, 
           onPray={onPray} 
           onDeleteClick={onDeleteClick}
           onMarkAnswered={onMarkAnswered}
-          wallId={wall.id} 
+          wallId={wallId} 
           appId={appId} 
           db={db}
           isWallAdmin={isWallAdmin}
@@ -771,7 +786,7 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
           <div>
             <h3 className="font-bold text-slate-800 dark:text-white text-sm">{displayName}</h3>
             <div className="flex items-center gap-2">
-               <p className="text-xs text-slate-400 flex items-center gap-1">{request.createdAt ? new Date(request.createdAt.seconds * 1000).toLocaleDateString() : 'Agora'}</p>
+               <p className="text-xs text-slate-400 flex items-center gap-1">{request.createdAt && request.createdAt.seconds ? new Date(request.createdAt.seconds * 1000).toLocaleDateString() : 'Agora'}</p>
                {request.category && <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full">{request.category}</span>}
             </div>
           </div>
@@ -806,13 +821,20 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
   const [category, setCategory] = useState('Geral');
   const [isAnonymous, setIsAnonymous] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => { isMounted.current = false; };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!content.trim()) return;
     setIsSubmitting(true);
     await onSubmit(content, isAnonymous, category);
-    setIsSubmitting(false);
+    if (isMounted.current) {
+        setIsSubmitting(false);
+    }
   };
 
   return (
