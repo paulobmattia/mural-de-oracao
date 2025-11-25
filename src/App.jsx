@@ -124,7 +124,7 @@ function SkeletonCard() {
   );
 }
 
-// Componente Audio Player (Novo na Fase 4)
+// Componente Audio Player
 function AudioPlayer({ src }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = useRef(null);
@@ -245,8 +245,7 @@ export default function PrayerApp() {
                     email: currentUser.email,
                     photoURL: currentUser.photoURL || null,
                     joinedWalls: [],
-                    streak: 0,
-                    notifications: { push: true, email: false }
+                    streak: 0
                 };
                 setDoc(profileRef, initialData);
                 setUserProfile(initialData);
@@ -366,15 +365,6 @@ export default function PrayerApp() {
     showToast("Foto atualizada!");
   };
 
-  const toggleNotificationSetting = async (type) => {
-      if (!user) return;
-      const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
-      const currentSettings = userProfile.notifications || { push: true, email: false };
-      await updateDoc(userRef, { 
-          notifications: { ...currentSettings, [type]: !currentSettings[type] } 
-      });
-  };
-
   if (view === 'splash') return <SplashScreen />;
   if (view === 'login') return <LoginScreen onLoginSuccess={() => setView('wall-list')} appId={appId} db={db} auth={auth} showToast={showToast} />;
 
@@ -456,7 +446,6 @@ export default function PrayerApp() {
                 onLogout={handleLogout} 
                 theme={theme} 
                 toggleTheme={toggleTheme} 
-                onToggleNotification={toggleNotificationSetting}
             />
         )}
       </main>
@@ -1287,7 +1276,7 @@ function InstallModal({ isOpen, onClose }) {
     );
 }
 
-function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme, onToggleNotification }) {
+function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme }) {
   const [name, setName] = useState(userProfile?.name || '');
   const [isEditing, setIsEditing] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
@@ -1320,118 +1309,15 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
     window.open(googleCalendarUrl, '_blank');
   };
 
-  const notifications = userProfile?.notifications || { push: true, email: false };
-
   return (
     <div className="p-6 max-w-xl mx-auto animate-in fade-in">
         <InstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
         
-        {/* Nova Seção: Notificações (Fase 4) */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
-            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
-                <Bell className="text-[#973130]" size={20} />
-                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Notificações</h3>
-            </div>
-            <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Quando alguém orar por mim</span>
-                    <button 
-                        onClick={() => onToggleNotification('push')}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${notifications.push ? 'bg-[#973130]' : 'bg-slate-300'}`}
-                    >
-                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${notifications.push ? 'left-7' : 'left-1'}`}></div>
-                    </button>
-                </div>
-                <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Resumo semanal por e-mail</span>
-                    <button 
-                        onClick={() => onToggleNotification('email')}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${notifications.email ? 'bg-[#973130]' : 'bg-slate-300'}`}
-                    >
-                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${notifications.email ? 'left-7' : 'left-1'}`}></div>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
-            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
-                <Sun className="text-yellow-500" size={20} />
-                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3>
-            </div>
-            <div className="p-6 flex items-center justify-between">
-                <span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span>
-                <button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}>
-                    <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>
-                        {theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}
-                    </div>
-                </button>
-            </div>
-        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div>
         
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
-            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
-                <User className="text-[#973130]" size={20} />
-                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3>
-            </div>
-            <div className="p-6 flex flex-col gap-6">
-                <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" />
-                        <button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors">
-                            <Camera size={14} />
-                        </button>
-                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
-                    </div>
-                    <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p>
-                        <p className="text-xs text-slate-400">Toque na câmera para alterar.</p>
-                    </div>
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label>
-                    <div className="flex gap-2 mt-2">
-                        <input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />
-                        {isEditing ? 
-                            <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : 
-                            <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
-            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
-                <Smartphone className="text-blue-500" size={20} />
-                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Aplicativo</h3>
-            </div>
-            <div className="p-6">
-                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Instale o Mural de Oração no seu celular para acessar mais rápido.</p>
-                <button onClick={() => setShowInstallModal(true)} className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 p-4 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2">
-                    <Download size={20} /> Instalar App
-                </button>
-            </div>
-        </div>
+        {/* Inovação Fase 2: Instalar PWA */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Smartphone className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aplicativo</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Instale o Mural de Oração no seu celular para acessar mais rápido.</p><button onClick={() => setShowInstallModal(true)} className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 p-4 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"><Download size={20} />Instalar App</button></div></div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
-            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
-                <Bell className="text-orange-500" size={20} />
-                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3>
-            </div>
-            <div className="p-6">
-                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p>
-                <button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2">
-                    <Calendar size={20} /> Adicionar à minha Agenda
-                </button>
-            </div>
-        </div>
-
-        <button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm">
-            <LogOut size={20} /> Sair da Conta
-        </button>
-        
-        <div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div>
-    </div>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div></div>
   );
 }
