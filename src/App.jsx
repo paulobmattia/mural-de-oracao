@@ -33,7 +33,8 @@ import {
   Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, Mail, Lock, 
   CheckCircle, LogOut, MessageCircle, X, AlertTriangle, Settings, Save, 
   Calendar, Bell, Moon, Sun, Camera, Users, KeyRound, Search, LogIn, ChevronLeft,
-  Filter, Tag, Award, Check, Info, Share2, Copy, Flame, Download, Smartphone, Flag, Eye, EyeOff, ShieldAlert
+  Filter, Tag, Award, Check, Info, Share2, Copy, Flame, Download, Smartphone, Flag, Eye, EyeOff, ShieldAlert,
+  Mic, Square, Play, Pause, Volume2, Trash2
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -123,6 +124,44 @@ function SkeletonCard() {
   );
 }
 
+// Componente Audio Player (Novo na Fase 4)
+function AudioPlayer({ src }) {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const audioRef = useRef(null);
+
+    const togglePlay = () => {
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play();
+        }
+        setIsPlaying(!isPlaying);
+    };
+
+    return (
+        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-700/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-600 mb-3 w-full max-w-[200px]">
+            <button 
+                onClick={togglePlay}
+                className="w-8 h-8 bg-[#973130] rounded-full flex items-center justify-center text-white hover:bg-[#7d2827] transition-colors flex-shrink-0"
+            >
+                {isPlaying ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+            </button>
+            <div className="flex-1">
+                <div className="h-1 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                    <div className={`h-full bg-[#973130] ${isPlaying ? 'animate-pulse w-full' : 'w-0'} transition-all duration-500`}></div>
+                </div>
+            </div>
+            <Volume2 size={14} className="text-slate-400" />
+            <audio 
+                ref={audioRef} 
+                src={src} 
+                onEnded={() => setIsPlaying(false)}
+                className="hidden"
+            />
+        </div>
+    );
+}
+
 // --- COMPONENTE PRINCIPAL ---
 
 export default function PrayerApp() {
@@ -195,11 +234,10 @@ export default function PrayerApp() {
       if (currentUser) {
         const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
         
-        // Listener em tempo real para o perfil do usuário (para atualizar streak na hora)
+        // Listener em tempo real para o perfil do usuário
         const unsubProfile = onSnapshot(profileRef, (docSnap) => {
             if (docSnap.exists()) {
                 setUserProfile(docSnap.data());
-                // Se a view for splash ou login, redireciona. Se já estiver em outra, mantém.
                 setView(v => (v === 'splash' || v === 'login' ? 'wall-list' : v));
             } else {
                 const initialData = { 
@@ -207,7 +245,8 @@ export default function PrayerApp() {
                     email: currentUser.email,
                     photoURL: currentUser.photoURL || null,
                     joinedWalls: [],
-                    streak: 0
+                    streak: 0,
+                    notifications: { push: true, email: false }
                 };
                 setDoc(profileRef, initialData);
                 setUserProfile(initialData);
@@ -246,7 +285,6 @@ export default function PrayerApp() {
       });
       const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
       await updateDoc(userRef, { joinedWalls: arrayUnion(wallRef.id) });
-      // Local update is handled by snapshot listener
       setActiveWall({ id: wallRef.id, title: title.trim(), isOwner: true, createdBy: user.uid, memberCount: 1 });
       setView('wall-detail');
       showToast('Mural criado com sucesso!');
@@ -281,7 +319,6 @@ export default function PrayerApp() {
       const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
       await updateDoc(userRef, { joinedWalls: arrayUnion(wallId) });
       await updateDoc(doc(db, 'artifacts', appId, 'prayer_walls', wallId), { memberCount: increment(1) });
-      // Profile update via snapshot
       setActiveWall({ id: wallId, ...wallData, memberCount: (wallData.memberCount || 0) + 1 });
       setView('wall-detail');
       showToast('Bem-vindo ao mural!');
@@ -327,6 +364,15 @@ export default function PrayerApp() {
     const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
     await setDoc(userRef, { photoURL: newPhoto }, { merge: true });
     showToast("Foto atualizada!");
+  };
+
+  const toggleNotificationSetting = async (type) => {
+      if (!user) return;
+      const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
+      const currentSettings = userProfile.notifications || { push: true, email: false };
+      await updateDoc(userRef, { 
+          notifications: { ...currentSettings, [type]: !currentSettings[type] } 
+      });
   };
 
   if (view === 'splash') return <SplashScreen />;
@@ -402,7 +448,17 @@ export default function PrayerApp() {
             checkAndUpdateStreak={checkAndUpdateStreak}
           />
         )}
-        {view === 'settings' && <SettingsScreen userProfile={userProfile} onUpdateName={updateName} onUpdatePhoto={updatePhoto} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />}
+        {view === 'settings' && (
+            <SettingsScreen 
+                userProfile={userProfile} 
+                onUpdateName={updateName} 
+                onUpdatePhoto={updatePhoto} 
+                onLogout={handleLogout} 
+                theme={theme} 
+                toggleTheme={toggleTheme} 
+                onToggleNotification={toggleNotificationSetting}
+            />
+        )}
       </main>
 
       {leaveModal.isOpen && activeWall && (
@@ -666,6 +722,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
   const [markAnsweredModal, setMarkAnsweredModal] = useState({ isOpen: false, requestId: null });
   const [filterTag, setFilterTag] = useState(null);
   const [showTestimonials, setShowTestimonials] = useState(false);
+  
+  // Inovação Fase 2: Filtros Avançados
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState('recent'); 
 
@@ -681,8 +739,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
     return () => unsubscribe();
   }, [wall.id, user.uid]);
 
-  const handleCreate = async (content, isAnonymous, category, visibility) => {
-    if (!content.trim()) return;
+  const handleCreate = async (content, isAnonymous, category, visibility, audioData) => {
+    if (!content.trim() && !audioData) return;
     try {
       await addDoc(collection(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests'), {
         authorName: userProfile?.name || 'Desconhecido',
@@ -692,6 +750,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, check
         content,
         category: category || 'Geral',
         visibility: visibility || 'public', 
+        audioData: audioData || null,
         createdAt: serverTimestamp(),
         prayedBy: [],
         commentCount: 0,
@@ -976,6 +1035,11 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
         {isTestimonial && <span className="block font-bold text-yellow-600 dark:text-yellow-500 mb-1 text-xs uppercase tracking-wide font-sans">✨ Graça Alcançada</span>}
         {request.content}
       </p>
+
+      {/* Fase 4: Player de Áudio */}
+      {request.audioData && (
+          <AudioPlayer src={request.audioData} />
+      )}
       
       <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-700">
         <button onClick={() => setShowComments(!showComments)} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium hover:text-[#973130] dark:hover:text-[#bc5c5b] transition-colors group">
@@ -1006,17 +1070,77 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [visibility, setVisibility] = useState('public'); 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Fase 4: Áudio Recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
   const isMounted = useRef(true);
 
   useEffect(() => {
     return () => { isMounted.current = false; };
   }, []);
 
+  const startRecording = async () => {
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorderRef.current = new MediaRecorder(stream);
+          audioChunksRef.current = [];
+
+          mediaRecorderRef.current.ondataavailable = (event) => {
+              audioChunksRef.current.push(event.data);
+          };
+
+          mediaRecorderRef.current.onstop = () => {
+              const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+              const audioUrl = URL.createObjectURL(audioBlob);
+              setAudioBlob(audioBlob);
+              setAudioUrl(audioUrl);
+          };
+
+          mediaRecorderRef.current.start();
+          setIsRecording(true);
+      } catch (err) {
+          console.error("Error accessing microphone:", err);
+          alert("Não foi possível acessar o microfone.");
+      }
+  };
+
+  const stopRecording = () => {
+      if (mediaRecorderRef.current && isRecording) {
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
+      }
+  };
+
+  const clearRecording = () => {
+      setAudioBlob(null);
+      setAudioUrl(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() && !audioBlob) return;
+    
     setIsSubmitting(true);
-    await onSubmit(content, isAnonymous, category, visibility);
+    let audioBase64 = null;
+
+    if (audioBlob) {
+        // Convert Audio Blob to Base64
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        await new Promise(resolve => {
+            reader.onloadend = () => {
+                audioBase64 = reader.result;
+                resolve();
+            }
+        });
+    }
+
+    await onSubmit(content, isAnonymous, category, visibility, audioBase64);
     if (isMounted.current) {
         setIsSubmitting(false);
     }
@@ -1062,7 +1186,32 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
           <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2"><Sparkles size={16} /> Seu Pedido de Oração</label>
           <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-[#973130]/30 dark:focus:ring-[#973130]/50 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700 font-serif" />
+          
+          {/* Área de Gravação de Áudio */}
+          <div className="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4">
+              {!audioUrl ? (
+                  <div className="flex items-center gap-3">
+                      <button 
+                        type="button"
+                        onClick={isRecording ? stopRecording : startRecording}
+                        className={`p-3 rounded-full transition-all ${isRecording ? 'bg-red-500 animate-pulse text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                      >
+                          {isRecording ? <Square size={20} fill="currentColor" /> : <Mic size={20} />}
+                      </button>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                          {isRecording ? "Gravando... (Toque para parar)" : "Gravar oração em áudio (opcional)"}
+                      </span>
+                  </div>
+              ) : (
+                  <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <button type="button" onClick={() => new Audio(audioUrl).play()} className="p-2 bg-[#973130] text-white rounded-full hover:bg-[#7d2827]"><Play size={16} fill="currentColor"/></button>
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex-1">Áudio Gravado</span>
+                      <button type="button" onClick={clearRecording} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"><Trash2 size={16} /></button>
+                  </div>
+              )}
+          </div>
         </div>
+        
         <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold shadow-lg shadow-[#973130]/30 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
       </form>
     </div>
@@ -1138,7 +1287,7 @@ function InstallModal({ isOpen, onClose }) {
     );
 }
 
-function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme }) {
+function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme, onToggleNotification }) {
   const [name, setName] = useState(userProfile?.name || '');
   const [isEditing, setIsEditing] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
@@ -1171,10 +1320,40 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
     window.open(googleCalendarUrl, '_blank');
   };
 
+  const notifications = userProfile?.notifications || { push: true, email: false };
+
   return (
     <div className="p-6 max-w-xl mx-auto animate-in fade-in">
         <InstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
         
+        {/* Nova Seção: Notificações (Fase 4) */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
+            <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
+                <Bell className="text-[#973130]" size={20} />
+                <h3 className="font-bold text-slate-700 dark:text-white font-serif">Notificações</h3>
+            </div>
+            <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Quando alguém orar por mim</span>
+                    <button 
+                        onClick={() => onToggleNotification('push')}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${notifications.push ? 'bg-[#973130]' : 'bg-slate-300'}`}
+                    >
+                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${notifications.push ? 'left-7' : 'left-1'}`}></div>
+                    </button>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Resumo semanal por e-mail</span>
+                    <button 
+                        onClick={() => onToggleNotification('email')}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${notifications.email ? 'bg-[#973130]' : 'bg-slate-300'}`}
+                    >
+                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${notifications.email ? 'left-7' : 'left-1'}`}></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
             <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
                 <Sun className="text-yellow-500" size={20} />
@@ -1222,7 +1401,6 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
             </div>
         </div>
         
-        {/* Inovação Fase 2: Instalar PWA */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors">
             <div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3">
                 <Smartphone className="text-blue-500" size={20} />
