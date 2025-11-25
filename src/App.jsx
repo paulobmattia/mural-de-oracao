@@ -33,7 +33,7 @@ import {
   Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, Mail, Lock, 
   CheckCircle, LogOut, MessageCircle, X, AlertTriangle, Settings, Save, 
   Calendar, Bell, Moon, Sun, Camera, Users, KeyRound, Search, LogIn, ChevronLeft,
-  Filter, Tag, Award, Check, Info
+  Filter, Tag, Award, Check, Info, Share2, Copy
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -68,7 +68,6 @@ const DAILY_VERSES = [
 const CATEGORIES = ['Geral', 'Saúde', 'Família', 'Financeiro', 'Espiritual', 'Urgente'];
 
 // --- TEMAS ---
-// Definindo a cor principal como variável para facilitar leitura, embora usada inline via Tailwind arbitrário
 const MAIN_COLOR = "#973130"; 
 
 // --- COMPONENTES AUXILIARES GLOBAIS ---
@@ -98,7 +97,33 @@ function UserAvatar({ src, name, size = "md", className = "" }) {
   return <div className={`${sizeClasses[size]} rounded-full flex items-center justify-center font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 ${className}`}>{name ? name.charAt(0).toUpperCase() : <User size={size === 'sm' ? 14 : 20} />}</div>;
 }
 
-// --- COMPONENTE PRINCIPAL ---
+// Componente Skeleton Loading (Inovação Fase 1)
+function SkeletonCard() {
+  return (
+    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 animate-pulse h-fit">
+      <div className="flex justify-between items-start mb-3 pr-16">
+        <div className="flex items-center gap-3 w-full">
+          <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+          <div className="flex-1">
+            <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24 mb-2"></div>
+            <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2 mb-4">
+        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
+        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded w-5/6"></div>
+        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded w-4/6"></div>
+      </div>
+      <div className="flex justify-between pt-2">
+         <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
+         <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-full w-20"></div>
+      </div>
+    </div>
+  );
+}
+
+// --- COMPONENTES ---
 
 export default function PrayerApp() {
   const [user, setUser] = useState(null);
@@ -115,7 +140,7 @@ export default function PrayerApp() {
   };
 
   useEffect(() => {
-    // Atualiza o título da aba
+    // Atualiza título da aba
     document.title = "Mural de Oração";
 
     const link = document.querySelector("link[rel~='icon']");
@@ -134,9 +159,7 @@ export default function PrayerApp() {
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
   useEffect(() => {
-    // Removed automatic environment token login to prevent auth/custom-token-mismatch error
-    // since we are now using a custom Firebase project configuration.
-
+    // Removido login automático de teste para evitar erro de token
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -279,9 +302,12 @@ export default function PrayerApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 overflow-hidden relative flex flex-col transition-colors duration-300" style={{ fontFamily: "'Roboto', sans-serif" }}>
+      {/* Inovação: Tipografia Expressiva importando Merriweather */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', sans-serif; }
+        .font-serif { font-family: 'Merriweather', serif; }
+        
         @keyframes fadeInSimple { 0% { opacity: 0; } 100% { opacity: 1; } }
         .animate-fade-simple { animation: fadeInSimple 2.5s ease-out forwards; }
         @keyframes fadeInDown { 0% { opacity: 0; transform: translate(-50%, -20px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
@@ -289,11 +315,17 @@ export default function PrayerApp() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Custom Color Classes based on #973130 */
+        /* Micro-interação: Animação do coração */
+        @keyframes heartBurst {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.3); }
+          100% { transform: scale(1); }
+        }
+        .animate-heart-burst { animation: heartBurst 0.3s ease-in-out; }
+
         .text-primary { color: #973130; }
         .bg-primary { background-color: #973130; }
         .border-primary { border-color: #973130; }
-        .ring-primary { --tw-ring-color: #973130; }
         .hover-bg-primary-dark:hover { background-color: #7d2827; }
         .hover-text-primary:hover { color: #973130; }
       `}</style>
@@ -344,12 +376,12 @@ export default function PrayerApp() {
 
       {leaveModal.isOpen && activeWall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-100 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
             <div className="flex flex-col items-center text-center gap-4">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 ${activeWall.createdBy === user.uid ? 'bg-red-100 text-red-600 dark:bg-red-900/40' : 'bg-orange-100 text-orange-600 dark:bg-orange-900/40'}`}>
                 {activeWall.createdBy === user.uid ? <AlertTriangle size={24} /> : <LogOut size={24} />}
               </div>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">{activeWall.createdBy === user.uid ? 'Excluir Grupo?' : 'Sair do Grupo?'}</h3>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white font-serif">{activeWall.createdBy === user.uid ? 'Excluir Grupo?' : 'Sair do Grupo?'}</h3>
               <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
                 {activeWall.createdBy === user.uid 
                   ? "Você é o criador. Se sair, este mural e todos os pedidos serão excluídos permanentemente para todos." 
@@ -405,7 +437,7 @@ function Header({ view, setView, activeWall, goBack, onLeaveClick }) {
         )}
         
         <div className="flex flex-col items-center justify-center truncate w-full">
-          <h1 className={`font-bold tracking-wide truncate leading-tight text-center w-full ${activeWall ? 'text-lg' : 'text-xl'}`}>
+          <h1 className={`font-bold tracking-wide truncate leading-tight text-center w-full font-serif ${activeWall ? 'text-lg' : 'text-xl'}`}>
             {getTitle()}
           </h1>
           {activeWall && (
@@ -471,7 +503,6 @@ function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      // Usando login real com popup para produção
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       if (result.user) {
           await saveUserProfile(result.user.uid, { 
@@ -499,7 +530,7 @@ function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
             <div className="flex justify-center mb-6">
                 <img src="/icon.png" alt="Logo" className="w-24 h-24 object-contain" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isRegister ? 'Criar Conta' : 'Bem-vindo'}</h2>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white font-serif">{isRegister ? 'Criar Conta' : 'Bem-vindo'}</h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Entre para conectar-se aos seus murais.</p>
         </div>
         <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
@@ -549,9 +580,9 @@ function WallListScreen({ userProfile, db, appId, onSelectWall, onCreateNew, onJ
     <div className="p-6 max-w-2xl mx-auto pt-8 animate-in fade-in">
       <div className="text-center mb-8">
         <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="xl" className="mb-4 mx-auto border-4 border-white dark:border-slate-800" />
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Olá, {userProfile?.name?.split(' ')[0]}</h2>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 font-serif">Olá, {userProfile?.name?.split(' ')[0]}</h2>
         <div className="bg-[#973130]/10 dark:bg-[#973130]/20 p-4 rounded-xl inline-block max-w-md border border-[#973130]/20 dark:border-[#973130]/30">
-            <p className="text-[#973130] dark:text-[#bc5c5b] text-sm italic font-medium">"{verse}"</p>
+            <p className="text-[#973130] dark:text-[#bc5c5b] text-sm italic font-medium font-serif">"{verse}"</p>
         </div>
       </div>
 
@@ -560,11 +591,11 @@ function WallListScreen({ userProfile, db, appId, onSelectWall, onCreateNew, onJ
         <button onClick={onJoinExisting} className="bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"><div className="bg-purple-500 text-white p-2 rounded-full"><Search size={20} /></div><span className="text-sm font-bold text-purple-700 dark:text-purple-300">Entrar em Mural</span></button>
       </div>
 
-      <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><BookOpen size={20} /> Meus Murais</h3>
+      <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2 font-serif"><BookOpen size={20} /> Meus Murais</h3>
       {loading ? (<div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#973130]"></div></div>) : myWalls.length === 0 ? (
         <div className="text-center p-8 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700"><Users size={40} className="mx-auto mb-2 opacity-50" /><p>Você ainda não participa de nenhum mural.</p><p className="text-xs mt-1">Crie um novo ou entre em um existente acima.</p></div>
       ) : (
-        <div className="space-y-3">{myWalls.map(wall => (<button key={wall.id} onClick={() => onSelectWall(wall)} className="w-full bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left group"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-full bg-[#973130]/10 dark:bg-[#973130]/30 text-[#973130] dark:text-[#bc5c5b] flex items-center justify-center font-bold text-lg">{wall.title.charAt(0).toUpperCase()}</div><div><h4 className="font-bold text-slate-800 dark:text-white text-lg group-hover:text-[#973130] dark:group-hover:text-[#bc5c5b] transition-colors">{wall.title}</h4><p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1"><Users size={12} /> {wall.memberCount || 1} intercessores</p></div></div><div className="text-slate-300 group-hover:translate-x-1 transition-transform"><ArrowLeft size={20} className="rotate-180" /></div></button>))}</div>
+        <div className="space-y-3">{myWalls.map(wall => (<button key={wall.id} onClick={() => onSelectWall(wall)} className="w-full bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left group"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-full bg-[#973130]/10 dark:bg-[#973130]/30 text-[#973130] dark:text-[#bc5c5b] flex items-center justify-center font-bold text-lg font-serif">{wall.title.charAt(0).toUpperCase()}</div><div><h4 className="font-bold text-slate-800 dark:text-white text-lg group-hover:text-[#973130] dark:group-hover:text-[#bc5c5b] transition-colors font-serif">{wall.title}</h4><p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1"><Users size={12} /> {wall.memberCount || 1} intercessores</p></div></div><div className="text-slate-300 group-hover:translate-x-1 transition-transform"><ArrowLeft size={20} className="rotate-180" /></div></button>))}</div>
       )}
     </div>
   );
@@ -576,7 +607,7 @@ function CreateWallScreen({ onSubmit, onCancel }) {
   const [loading, setLoading] = useState(false);
   const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); await onSubmit(title, password); setLoading(false); };
   return (
-    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center">Novo Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Crie um espaço seguro para seu grupo.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome do Mural</label><div className="relative"><Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Ex: Família Silva..." value={title} onChange={e => setTitle(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#973130] dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha de Acesso</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Defina uma senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#973130] dark:text-white" /></div><p className="text-xs text-slate-400">Compartilhe esta senha apenas com quem deve entrar.</p></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold transition-colors dark:shadow-none">{loading ? 'Criando...' : 'Criar Mural'}</button></div></form></div>
+    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center font-serif">Novo Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Crie um espaço seguro para seu grupo.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome do Mural</label><div className="relative"><Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Ex: Família Silva..." value={title} onChange={e => setTitle(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#973130] dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha de Acesso</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Defina uma senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-[#973130] dark:text-white" /></div><p className="text-xs text-slate-400">Compartilhe esta senha apenas com quem deve entrar.</p></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold transition-colors dark:shadow-none">{loading ? 'Criando...' : 'Criar Mural'}</button></div></form></div>
   );
 }
 
@@ -586,7 +617,7 @@ function JoinWallScreen({ onSubmit, onCancel }) {
   const [loading, setLoading] = useState(false);
   const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); await onSubmit(name, password); setLoading(false); };
   return (
-    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center">Entrar em Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Digite os dados fornecidos pelo criador.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome Exato do Mural</label><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite o nome exato..." value={name} onChange={e => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha do Mural</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite a senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-purple-600 text-white p-4 rounded-xl font-bold hover:bg-purple-700 transition-colors dark:shadow-none">{loading ? 'Buscando...' : 'Entrar'}</button></div></form></div>
+    <div className="p-6 max-w-md mx-auto pt-10 animate-in fade-in slide-in-from-bottom-4"><h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 text-center font-serif">Entrar em Mural</h2><p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">Digite os dados fornecidos pelo criador.</p><form onSubmit={handleSubmit} className="flex flex-col gap-6"><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Nome Exato do Mural</label><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite o nome exato..." value={name} onChange={e => setName(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="space-y-2"><label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Senha do Mural</label><div className="relative"><KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input required type="text" placeholder="Digite a senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white" /></div></div><div className="flex gap-3 mt-4"><button type="button" onClick={onCancel} className="flex-1 p-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">Cancelar</button><button type="submit" disabled={loading} className="flex-1 bg-purple-600 text-white p-4 rounded-xl font-bold hover:bg-purple-700 transition-colors dark:shadow-none">{loading ? 'Buscando...' : 'Entrar'}</button></div></form></div>
   );
 }
 
@@ -671,8 +702,8 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
       <div className="mb-4 flex flex-col gap-2">
         <div className="px-4">
           <div className="flex gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm">
-            <button onClick={() => setShowTestimonials(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!showTestimonials ? 'bg-[#973130] text-white' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}>Mural</button>
-            <button onClick={() => setShowTestimonials(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${showTestimonials ? 'bg-yellow-500 text-white' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}><Award size={16} /> Testemunhos</button>
+            <button onClick={() => setShowTestimonials(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!showTestimonials ? 'bg-[#973130] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}>Mural</button>
+            <button onClick={() => setShowTestimonials(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${showTestimonials ? 'bg-yellow-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}><Award size={16} /> Testemunhos</button>
           </div>
         </div>
         
@@ -710,18 +741,19 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
             db={db}
             isWallAdmin={isWallAdmin}
             isTestimonialMode={showTestimonials}
+            showToast={showToast}
           />
         )}
       </div>
 
       {mode === 'read' && !showTestimonials && (
-        <button onClick={() => setMode('write')} className="fixed bottom-6 right-6 w-14 h-14 bg-[#973130] hover:bg-[#7d2827] text-white rounded-full dark:shadow-none flex items-center justify-center active:scale-95 transition-all z-30"><Plus size={28} /></button>
+        <button onClick={() => setMode('write')} className="fixed bottom-6 right-6 w-14 h-14 bg-[#973130] hover:bg-[#7d2827] text-white rounded-full shadow-lg shadow-[#973130]/30 dark:shadow-none flex items-center justify-center active:scale-95 transition-all z-30"><Plus size={28} /></button>
       )}
 
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Excluir Pedido?</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2 font-serif">Excluir Pedido?</h3>
             <div className="flex gap-3 mt-4">
               <button onClick={() => setDeleteModal({ isOpen: false, requestId: null })} className="flex-1 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300">Cancelar</button>
               <button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg">Excluir</button>
@@ -736,7 +768,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
             <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center text-yellow-600 mx-auto mb-4">
                 <Award size={24} />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Graça Alcançada?</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2 font-serif">Graça Alcançada?</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
                 Deseja marcar este pedido como respondido? Ele será movido para a aba de <b>Testemunhos</b>.
             </p>
@@ -751,8 +783,17 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
   );
 }
 
-function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, currentUser, userProfile, wallId, appId, db, isWallAdmin, isTestimonialMode }) {
-  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#973130]"></div></div>;
+function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, currentUser, userProfile, wallId, appId, db, isWallAdmin, isTestimonialMode, showToast }) {
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
+  
   if (requests.length === 0) return <div className="text-center p-10 text-slate-400">{isTestimonialMode ? "Ainda não há testemunhos. Continue orando!" : "Não há pedidos com esse filtro."}</div>;
 
   return (
@@ -771,13 +812,14 @@ function ReadScreen({ requests, loading, onPray, onDeleteClick, onMarkAnswered, 
           db={db}
           isWallAdmin={isWallAdmin}
           isTestimonial={isTestimonialMode}
+          showToast={showToast}
         />
       ))}
     </div>
   );
 }
 
-function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, onMarkAnswered, wallId, appId, db, isWallAdmin, isTestimonial }) {
+function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, onMarkAnswered, wallId, appId, db, isWallAdmin, isTestimonial, showToast }) {
   const prayedBy = request.prayedBy || [];
   const isPraying = prayedBy.includes(currentUser?.uid);
   const isAuthor = request.authorId === currentUser?.uid;
@@ -787,15 +829,42 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
   const commentCount = request.commentCount || 0;
   const canDelete = isAuthor || isWallAdmin;
 
+  // Inovação Fase 1: Compartilhamento Nativo
+  const handleShare = async () => {
+    const shareData = {
+      title: 'Mural de Oração',
+      text: `Peço oração: "${request.content.substring(0, 100)}${request.content.length > 100 ? '...' : ''}" - Mural de Oração`,
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.log('Error sharing:', err);
+      }
+    } else {
+      navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+      showToast("Link copiado para a área de transferência!", "info");
+    }
+  };
+
   return (
     <div className={`bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border transition-all hover:shadow-md relative group h-fit ${isTestimonial ? 'border-yellow-400 dark:border-yellow-600 ring-1 ring-yellow-100 dark:ring-yellow-900' : 'border-slate-100 dark:border-slate-700'}`}>
-      {canDelete && (<button onClick={() => onDeleteClick(request.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1"><X size={16} /></button>)}
-      
-      {isAuthor && !isTestimonial && (
-         <button onClick={() => onMarkAnswered(request.id)} className="absolute top-3 right-10 text-slate-300 hover:text-yellow-500 transition-colors p-1" title="Marcar como Graça Alcançada"><Award size={16} /></button>
-      )}
+      <div className="absolute top-3 right-3 flex gap-1">
+        {/* Inovação Fase 1: Botão Compartilhar */}
+        <button onClick={handleShare} className="p-1.5 text-slate-300 hover:text-[#973130] transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700" title="Compartilhar">
+            <Share2 size={16} />
+        </button>
+        
+        {canDelete && (<button onClick={() => onDeleteClick(request.id)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700"><X size={16} /></button>)}
+        
+        {isAuthor && !isTestimonial && (
+           <button onClick={() => onMarkAnswered(request.id)} className="p-1.5 text-slate-300 hover:text-yellow-500 transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-700" title="Marcar como Graça Alcançada"><Award size={16} /></button>
+        )}
+      </div>
 
-      <div className="flex justify-between items-start mb-3 pr-16">
+      <div className="flex justify-between items-start mb-3 pr-20">
         <div className="flex items-center gap-3">
           <UserAvatar src={displayPhoto} name={displayName} size="md" className={isAuthor ? "ring-2 ring-[#973130]/20 dark:ring-[#973130]/40" : ""} />
           <div>
@@ -808,8 +877,8 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
         </div>
       </div>
       
-      <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1">
-        {isTestimonial && <span className="block font-bold text-yellow-600 dark:text-yellow-500 mb-1 text-xs uppercase tracking-wide">✨ Graça Alcançada</span>}
+      <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap pl-1 font-serif">
+        {isTestimonial && <span className="block font-bold text-yellow-600 dark:text-yellow-500 mb-1 text-xs uppercase tracking-wide font-sans">✨ Graça Alcançada</span>}
         {request.content}
       </p>
       
@@ -819,8 +888,14 @@ function PrayerCard({ request, currentUser, userProfile, onPray, onDeleteClick, 
         </button>
         
         {!isTestimonial ? (
-            <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${isPraying ? 'bg-[#973130] text-white border-[#973130]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'} active:scale-95`}>
-            {isPraying ? (<>Orando <Heart size={14} className="fill-red-500 text-red-500" /></>) : (<>Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" /></>)}<span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>| {prayedBy.length}</span>
+            // Inovação Fase 1: Micro-interação Animada no botão de orar
+            <button onClick={() => onPray(request.id, isPraying)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border active:scale-95 ${isPraying ? 'bg-[#973130] text-white border-[#973130]' : 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-900 hover:text-red-500'}`}>
+            {isPraying ? (
+                <>Orando <Heart size={14} className="fill-white text-white animate-heart-burst" /></>
+            ) : (
+                <>Eu Oro <Heart size={14} className="group-hover:text-red-500 transition-colors" /></>
+            )}
+            <span className={`ml-1 font-normal ${isPraying ? 'opacity-100' : 'opacity-80'}`}>| {prayedBy.length}</span>
             </button>
         ) : (
             <span className="text-xs font-bold text-yellow-600 dark:text-yellow-500 flex items-center gap-1"><Award size={14}/> Testemunho</span>
@@ -856,7 +931,7 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
     <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto">
       <div className="flex items-center mb-6">
         <button onClick={onBack} className="p-2 -ml-2 mr-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><ChevronLeft size={24} /></button>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Novo Pedido</h2>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white font-serif">Novo Pedido</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -880,9 +955,9 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
           <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2"><Sparkles size={16} /> Seu Pedido de Oração</label>
-          <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-[#973130]/30 dark:focus:ring-[#973130]/50 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700" />
+          <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-[#973130]/30 dark:focus:ring-[#973130]/50 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700 font-serif" />
         </div>
-        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
+        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold shadow-lg shadow-[#973130]/30 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
       </form>
     </div>
   );
@@ -948,6 +1023,6 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
     window.open(googleCalendarUrl, '_blank');
   };
   return (
-    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div></div>
+    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div></div>
   );
 }
