@@ -33,7 +33,7 @@ import {
   Heart, Send, User, ArrowLeft, Sparkles, Plus, BookOpen, Mail, Lock, 
   CheckCircle, LogOut, MessageCircle, X, AlertTriangle, Settings, Save, 
   Calendar, Bell, Moon, Sun, Camera, Users, KeyRound, Search, LogIn, ChevronLeft,
-  Filter, Tag, Award, Check, Info, Share2, Copy
+  Filter, Tag, Award, Check, Info, Share2, Copy, Flame, Download, Smartphone
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO DO FIREBASE ---
@@ -84,7 +84,7 @@ function ToastNotification({ message, type, onClose }) {
   const icon = type === 'error' ? <AlertTriangle size={18} /> : type === 'info' ? <Info size={18} /> : <Check size={18} />;
 
   return (
-    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-full text-white animate-fade-in-down ${bgClass}`}>
+    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white animate-fade-in-down ${bgClass}`}>
       {icon}
       <span className="text-sm font-medium">{message}</span>
     </div>
@@ -97,7 +97,7 @@ function UserAvatar({ src, name, size = "md", className = "" }) {
   return <div className={`${sizeClasses[size]} rounded-full flex items-center justify-center font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 ${className}`}>{name ? name.charAt(0).toUpperCase() : <User size={size === 'sm' ? 14 : 20} />}</div>;
 }
 
-// Componente Skeleton Loading (Inovação Fase 1)
+// Componente Skeleton Loading
 function SkeletonCard() {
   return (
     <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 animate-pulse h-fit">
@@ -123,7 +123,7 @@ function SkeletonCard() {
   );
 }
 
-// --- COMPONENTES ---
+// --- COMPONENTE PRINCIPAL ---
 
 export default function PrayerApp() {
   const [user, setUser] = useState(null);
@@ -140,7 +140,6 @@ export default function PrayerApp() {
   };
 
   useEffect(() => {
-    // Atualiza título da aba
     document.title = "Mural de Oração";
 
     const link = document.querySelector("link[rel~='icon']");
@@ -158,29 +157,65 @@ export default function PrayerApp() {
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
+  // Função para atualizar o Streak (Dias Consecutivos)
+  const checkAndUpdateStreak = async (userId, currentStreak = 0, lastPrayedTimestamp) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    
+    let lastPrayed = 0;
+    if (lastPrayedTimestamp) {
+        const date = lastPrayedTimestamp.toDate();
+        lastPrayed = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    }
+
+    const oneDay = 24 * 60 * 60 * 1000;
+    
+    // Se já orou hoje, não faz nada
+    if (lastPrayed === today) return;
+
+    let newStreak = currentStreak;
+
+    // Se orou ontem, incrementa. Se orou antes de ontem, reseta para 1. Se nunca orou, vira 1.
+    if (lastPrayed === today - oneDay) {
+        newStreak += 1;
+    } else {
+        newStreak = 1;
+    }
+
+    const userRef = doc(db, 'artifacts', appId, 'users', userId, 'profile', 'main');
+    await updateDoc(userRef, {
+        streak: newStreak,
+        lastPrayedAt: serverTimestamp()
+    });
+  };
+
   useEffect(() => {
-    // Removido login automático de teste para evitar erro de token
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
-        try {
-          const docSnap = await getDoc(profileRef);
-          if (docSnap.exists()) {
-            setUserProfile(docSnap.data());
-            setView(v => (v === 'splash' || v === 'login' ? 'wall-list' : v));
-          } else {
-             const initialData = { 
-               name: currentUser.displayName || 'Visitante', 
-               email: currentUser.email,
-               photoURL: currentUser.photoURL || null,
-               joinedWalls: [] 
-             };
-             await setDoc(profileRef, initialData);
-             setUserProfile(initialData);
-             setView(v => (v === 'splash' || v === 'login' ? 'wall-list' : v));
-          }
-        } catch (e) { console.error(e); }
+        
+        // Listener em tempo real para o perfil do usuário (para atualizar streak na hora)
+        const unsubProfile = onSnapshot(profileRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setUserProfile(docSnap.data());
+                // Se a view for splash ou login, redireciona. Se já estiver em outra, mantém.
+                setView(v => (v === 'splash' || v === 'login' ? 'wall-list' : v));
+            } else {
+                const initialData = { 
+                    name: currentUser.displayName || 'Visitante', 
+                    email: currentUser.email,
+                    photoURL: currentUser.photoURL || null,
+                    joinedWalls: [],
+                    streak: 0
+                };
+                setDoc(profileRef, initialData);
+                setUserProfile(initialData);
+                setView(v => (v === 'splash' || v === 'login' ? 'wall-list' : v));
+            }
+        });
+        
+        return () => unsubProfile();
       } else {
         setUserProfile(null);
         setActiveWall(null);
@@ -211,7 +246,7 @@ export default function PrayerApp() {
       });
       const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
       await updateDoc(userRef, { joinedWalls: arrayUnion(wallRef.id) });
-      setUserProfile(prev => ({ ...prev, joinedWalls: [...(prev.joinedWalls || []), wallRef.id] }));
+      // Local update is handled by snapshot listener
       setActiveWall({ id: wallRef.id, title: title.trim(), isOwner: true, createdBy: user.uid, memberCount: 1 });
       setView('wall-detail');
       showToast('Mural criado com sucesso!');
@@ -246,7 +281,7 @@ export default function PrayerApp() {
       const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
       await updateDoc(userRef, { joinedWalls: arrayUnion(wallId) });
       await updateDoc(doc(db, 'artifacts', appId, 'prayer_walls', wallId), { memberCount: increment(1) });
-      setUserProfile(prev => ({ ...prev, joinedWalls: [...(prev.joinedWalls || []), wallId] }));
+      // Profile update via snapshot
       setActiveWall({ id: wallId, ...wallData, memberCount: (wallData.memberCount || 0) + 1 });
       setView('wall-detail');
       showToast('Bem-vindo ao mural!');
@@ -268,7 +303,6 @@ export default function PrayerApp() {
             memberCount: increment(-1) 
           });
       }
-      setUserProfile(prev => ({ ...prev, joinedWalls: prev.joinedWalls.filter(id => id !== activeWall.id) }));
       setLeaveModal({ isOpen: false });
       setActiveWall(null);
       setView('wall-list');
@@ -285,7 +319,6 @@ export default function PrayerApp() {
     if (!user) return;
     const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
     await setDoc(userRef, { name: newName }, { merge: true });
-    setUserProfile(prev => ({ ...prev, name: newName }));
     showToast("Nome atualizado!");
   };
 
@@ -293,7 +326,6 @@ export default function PrayerApp() {
     if (!user) return;
     const userRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
     await setDoc(userRef, { photoURL: newPhoto }, { merge: true });
-    setUserProfile(prev => ({ ...prev, photoURL: newPhoto }));
     showToast("Foto atualizada!");
   };
 
@@ -302,7 +334,6 @@ export default function PrayerApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 overflow-hidden relative flex flex-col transition-colors duration-300" style={{ fontFamily: "'Roboto', sans-serif" }}>
-      {/* Inovação: Tipografia Expressiva importando Merriweather */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', sans-serif; }
@@ -315,7 +346,6 @@ export default function PrayerApp() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Micro-interação: Animação do coração */
         @keyframes heartBurst {
           0% { transform: scale(1); }
           50% { transform: scale(1.3); }
@@ -369,6 +399,7 @@ export default function PrayerApp() {
             db={db}
             appId={appId}
             showToast={showToast}
+            checkAndUpdateStreak={checkAndUpdateStreak}
           />
         )}
         {view === 'settings' && <SettingsScreen userProfile={userProfile} onUpdateName={updateName} onUpdatePhoto={updatePhoto} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />}
@@ -480,7 +511,7 @@ function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
       let userCredential;
       if (isRegister) {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await saveUserProfile(userCredential.user.uid, { name: name.trim(), email, joinedWalls: [] });
+        await saveUserProfile(userCredential.user.uid, { name: name.trim(), email, joinedWalls: [], streak: 0 });
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
@@ -537,7 +568,7 @@ function LoginScreen({ onLoginSuccess, appId, db, auth, showToast }) {
           {isRegister && <input type="text" required placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />}
           <input type="email" required placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />
           <input type="password" required placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none dark:text-white" />
-          <button type="submit" disabled={loading} className="w-full bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold active:scale-95 transition-all disabled:opacity-70">{loading ? '...' : (isRegister ? 'Cadastrar' : 'Entrar')}</button>
+          <button type="submit" disabled={loading} className="w-full bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold active:scale-95 transition-all disabled:opacity-70 shadow-md shadow-[#973130]/30">{loading ? '...' : (isRegister ? 'Cadastrar' : 'Entrar')}</button>
         </form>
         <div className="flex items-center gap-4"><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div><span className="text-xs text-slate-400 font-bold uppercase">Ou</span><div className="h-px flex-1 bg-slate-100 dark:bg-slate-800"></div></div>
         <button type="button" onClick={handleGoogleLogin} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 p-4 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-3">
@@ -578,8 +609,15 @@ function WallListScreen({ userProfile, db, appId, onSelectWall, onCreateNew, onJ
 
   return (
     <div className="p-6 max-w-2xl mx-auto pt-8 animate-in fade-in">
-      <div className="text-center mb-8">
-        <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="xl" className="mb-4 mx-auto border-4 border-white dark:border-slate-800" />
+      <div className="flex flex-col items-center mb-8 text-center">
+        <UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="xl" className="mb-4 shadow-lg border-4 border-white dark:border-slate-800" />
+        
+        {/* Inovação Fase 2: Streak Counter */}
+        <div className="flex items-center gap-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-4 py-1.5 rounded-full text-sm font-bold mb-3 shadow-sm">
+            <Flame size={18} className="fill-orange-500" />
+            <span>{userProfile?.streak || 0} dias orando</span>
+        </div>
+
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 font-serif">Olá, {userProfile?.name?.split(' ')[0]}</h2>
         <div className="bg-[#973130]/10 dark:bg-[#973130]/20 p-4 rounded-xl inline-block max-w-md border border-[#973130]/20 dark:border-[#973130]/30">
             <p className="text-[#973130] dark:text-[#bc5c5b] text-sm italic font-medium font-serif">"{verse}"</p>
@@ -621,7 +659,7 @@ function JoinWallScreen({ onSubmit, onCancel }) {
   );
 }
 
-function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
+function WallDetailScreen({ wall, user, userProfile, db, appId, showToast, checkAndUpdateStreak }) {
   const [mode, setMode] = useState('read'); 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -629,6 +667,10 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
   const [markAnsweredModal, setMarkAnsweredModal] = useState({ isOpen: false, requestId: null });
   const [filterTag, setFilterTag] = useState(null);
   const [showTestimonials, setShowTestimonials] = useState(false);
+  
+  // Inovação Fase 2: Filtros Avançados
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState('recent'); // 'recent', 'least_prayed'
 
   const isWallAdmin = wall.createdBy === user?.uid;
 
@@ -636,13 +678,7 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
     const requestsRef = collection(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests');
     const unsubscribe = onSnapshot(requestsRef, (snapshot) => {
       const loadedRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      loadedRequests.sort((a, b) => {
-        const aPrayed = a.prayedBy?.includes(user.uid) || false;
-        const bPrayed = b.prayedBy?.includes(user.uid) || false;
-        if (aPrayed && !bPrayed) return -1;
-        if (!aPrayed && bPrayed) return 1;
-        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
-      });
+      // A ordenação agora é feita no render para suportar os filtros dinâmicos
       setRequests(loadedRequests);
       setLoading(false);
     });
@@ -670,6 +706,11 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
   };
 
   const handlePray = async (requestId, isPraying) => {
+    // Inovação Fase 2: Atualizar Streak
+    if (!isPraying) {
+        await checkAndUpdateStreak(user.uid, userProfile.streak, userProfile.lastPrayedAt);
+    }
+
     const docRef = doc(db, 'artifacts', appId, 'prayer_walls', wall.id, 'requests', requestId);
     await updateDoc(docRef, { prayedBy: isPraying ? arrayRemove(user.uid) : arrayUnion(user.uid) });
   };
@@ -689,27 +730,65 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
     showToast('Pedido excluído.');
   };
 
-  const filteredRequests = requests.filter(req => {
+  // Lógica de Filtragem e Ordenação Avançada
+  const processedRequests = requests.filter(req => {
     if (showTestimonials) return req.isAnswered;
     if (req.isAnswered) return false; 
     if (filterTag && req.category !== filterTag) return false;
+    if (searchTerm && !req.content.toLowerCase().includes(searchTerm.toLowerCase()) && !req.authorName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
+  }).sort((a, b) => {
+      if (sortBy === 'least_prayed') {
+          const countA = a.prayedBy ? a.prayedBy.length : 0;
+          const countB = b.prayedBy ? b.prayedBy.length : 0;
+          return countA - countB; // Menos orados primeiro
+      }
+      // Default: Recent + Prioridade de quem eu ainda não orei
+      const aPrayed = a.prayedBy?.includes(user.uid) || false;
+      const bPrayed = b.prayedBy?.includes(user.uid) || false;
+      if (aPrayed && !bPrayed) return 1; // Joga pro fim
+      if (!aPrayed && bPrayed) return -1;
+      return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
   });
 
   return (
     <div className="pb-20 pt-4 relative h-full">
       
-      <div className="mb-4 flex flex-col gap-2">
-        <div className="px-4">
-          <div className="flex gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm">
+      {/* Inovação Fase 2: Barra de Busca e Filtros */}
+      <div className="mb-4 flex flex-col gap-3 px-4">
+        {/* Abas Principais */}
+        <div className="flex gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm">
             <button onClick={() => setShowTestimonials(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!showTestimonials ? 'bg-[#973130] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}>Mural</button>
             <button onClick={() => setShowTestimonials(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${showTestimonials ? 'bg-yellow-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400'}`}><Award size={16} /> Testemunhos</button>
-          </div>
         </div>
-        
+
+        {/* Barra de Busca e Ordenação (Apenas no modo Mural) */}
         {!showTestimonials && (
-          <div className="-mx-6 px-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar w-[calc(100%+48px)]">
-             <div className="w-4 flex-shrink-0"></div>
+            <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                        type="text" 
+                        placeholder="Buscar pedido..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:border-[#973130]"
+                    />
+                </div>
+                <button 
+                    onClick={() => setSortBy(prev => prev === 'recent' ? 'least_prayed' : 'recent')}
+                    className={`px-3 rounded-xl border flex items-center justify-center transition-colors ${sortBy === 'least_prayed' ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'}`}
+                    title={sortBy === 'recent' ? "Filtrar por Menos Orados" : "Filtrar por Recentes"}
+                >
+                    <Filter size={18} />
+                </button>
+            </div>
+        )}
+      </div>
+        
+      {/* Filtros de Categoria */}
+      {!showTestimonials && (
+          <div className="-mx-6 px-6 flex gap-2 overflow-x-auto pb-2 no-scrollbar w-[calc(100%+48px)] mb-2 pl-8">
              {CATEGORIES.map(tag => (
                <button 
                 key={tag} 
@@ -721,15 +800,14 @@ function WallDetailScreen({ wall, user, userProfile, db, appId, showToast }) {
              ))}
              <div className="w-4 flex-shrink-0"></div>
           </div>
-        )}
-      </div>
+      )}
 
       <div className="px-4">
         {mode === 'write' ? (
           <WriteScreen onSubmit={handleCreate} userProfile={userProfile} onBack={() => setMode('read')} />
         ) : (
           <ReadScreen 
-            requests={filteredRequests} 
+            requests={processedRequests} 
             loading={loading} 
             currentUser={user} 
             userProfile={userProfile} 
@@ -957,7 +1035,7 @@ function WriteScreen({ onSubmit, userProfile, onBack }) {
           <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2"><Sparkles size={16} /> Seu Pedido de Oração</label>
           <textarea required rows={6} placeholder="Descreva seu pedido com detalhes..." value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-[#973130]/30 dark:focus:ring-[#973130]/50 transition-all resize-none text-slate-700 dark:text-white border border-transparent dark:border-slate-700 font-serif" />
         </div>
-        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold shadow-lg shadow-[#973130]/30 dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
+        <button disabled={isSubmitting} type="submit" className="bg-[#973130] hover:bg-[#7d2827] text-white p-4 rounded-xl font-bold dark:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70">{isSubmitting ? 'Enviando...' : (<><Send size={20} /> Enviar Pedido</>)}</button>
       </form>
     </div>
   );
@@ -993,10 +1071,51 @@ function CommentsSection({ requestId, currentUser, userProfile, wallId, appId, d
   );
 }
 
+// Modal de Instruções PWA
+function InstallModal({ isOpen, onClose }) {
+    if (!isOpen) return null;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl relative">
+                <button onClick={onClose} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                <div className="w-16 h-16 bg-blue-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Smartphone size={32} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 font-serif">Instalar Aplicativo</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                    Adicione o Mural de Oração à sua tela inicial para acessar mais rápido e sem digitar o site.
+                </p>
+                
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl text-left text-sm text-slate-600 dark:text-slate-300 mb-6 border border-slate-100 dark:border-slate-700">
+                    {isIOS ? (
+                        <ol className="list-decimal ml-4 space-y-2">
+                            <li>Toque no botão <strong>Compartilhar</strong> <Share2 size={12} className="inline"/> do navegador.</li>
+                            <li>Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>.</li>
+                            <li>Confirme clicando em <strong>Adicionar</strong>.</li>
+                        </ol>
+                    ) : (
+                        <ol className="list-decimal ml-4 space-y-2">
+                            <li>Toque no menu do navegador (três pontinhos).</li>
+                            <li>Selecione <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.</li>
+                            <li>Siga as instruções na tela.</li>
+                        </ol>
+                    )}
+                </div>
+
+                <button onClick={onClose} className="w-full py-3 bg-[#973130] text-white rounded-xl font-bold hover:bg-[#7d2827] transition-colors">Entendi</button>
+            </div>
+        </div>
+    );
+}
+
 function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, theme, toggleTheme }) {
   const [name, setName] = useState(userProfile?.name || '');
   const [isEditing, setIsEditing] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const fileInputRef = useRef(null);
+  
   const handleSave = () => { onUpdateName(name); setIsEditing(false); };
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -1016,13 +1135,26 @@ function SettingsScreen({ userProfile, onUpdateName, onUpdatePhoto, onLogout, th
       reader.readAsDataURL(file);
     }
   };
+  
   const handleAddToCalendar = () => {
     const title = "Momento de Oração";
     const details = "Tempo dedicado para acessar o Mural de Oração e interceder.";
     const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&recur=RRULE:FREQ=DAILY`;
     window.open(googleCalendarUrl, '_blank');
   };
+
   return (
-    <div className="p-6 max-w-xl mx-auto animate-in fade-in"><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div><div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div></div>
+    <div className="p-6 max-w-xl mx-auto animate-in fade-in">
+        <InstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
+        
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Sun className="text-yellow-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aparência</h3></div><div className="p-6 flex items-center justify-between"><span className="text-slate-600 dark:text-slate-300 font-medium">Modo Escuro</span><button onClick={toggleTheme} className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-[#973130]' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}>{theme === 'dark' ? <Moon size={14} className="text-[#973130]" /> : <Sun size={14} className="text-yellow-500" />}</div></button></div></div>
+        
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><User className="text-[#973130]" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Perfil</h3></div><div className="p-6 flex flex-col gap-6"><div className="flex items-center gap-4"><div className="relative"><UserAvatar src={userProfile?.photoURL} name={userProfile?.name} size="lg" /><button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#973130] text-white p-1.5 rounded-full shadow-md hover:bg-[#7d2827] transition-colors"><Camera size={14} /></button><input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /></div><div className="flex-1"><p className="text-sm font-bold text-slate-700 dark:text-white">Sua Foto</p><p className="text-xs text-slate-400">Toque na câmera para alterar.</p></div></div><div><label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Nome de Exibição</label><div className="flex gap-2 mt-2"><input type="text" value={name} disabled={!isEditing} onChange={(e) => setName(e.target.value)} className={`flex-1 p-3 rounded-xl border outline-none transition-all ${isEditing ? 'bg-white dark:bg-slate-700 border-[#973130] ring-2 ring-[#973130]/20 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`} />{isEditing ? <button onClick={handleSave} className="bg-[#973130] text-white p-3 rounded-xl"><Save size={20} /></button> : <button onClick={() => setIsEditing(true)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 p-3 rounded-xl"><Settings size={20} /></button>}</div></div></div></div>
+        
+        {/* Inovação Fase 2: Instalar PWA */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Smartphone className="text-blue-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Aplicativo</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Instale o Mural de Oração no seu celular para acessar mais rápido.</p><button onClick={() => setShowInstallModal(true)} className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 p-4 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"><Download size={20} />Instalar App</button></div></div>
+
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6 transition-colors"><div className="bg-slate-50 dark:bg-slate-700 p-4 border-b border-slate-100 dark:border-slate-600 flex items-center gap-3"><Bell className="text-orange-500" size={20} /><h3 className="font-bold text-slate-700 dark:text-white font-serif">Lembrete Diário</h3></div><div className="p-6"><p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">Para manter o hábito da oração, adicione um lembrete recorrente na sua agenda pessoal.</p><button onClick={handleAddToCalendar} className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 p-4 rounded-xl font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex items-center justify-center gap-2"><Calendar size={20} />Adicionar à minha Agenda</button></div></div><button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 border border-red-100 dark:border-red-900 text-red-500 p-4 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 shadow-sm"><LogOut size={20} /> Sair da Conta</button><div className="text-center mt-8 text-xs text-slate-300 dark:text-slate-600">Versão 6.6 Final</div>
+    </div>
   );
 }
